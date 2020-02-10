@@ -1,0 +1,66 @@
+
+TO DO:
+    - Finalize paper
+    - Include integral term in features
+    - Setup variable coefficients
+
+Paper:
+    - Suggested Titles:
+        - Distribution Equation Learning (DEL)
+        - Monte Carlo Based PDF Learning
+        - Simulation-based PDF Learning
+        - Probability Density Equation Learning (PDEL)
+        - Data-Driven PDF Equation Derivation  
+
+    - Intro:
+        - Add references: Hop Lipson's original paper. 
+        - Argue that this is more 'physics-informed' machine learning 
+        - Terms are known to be part of the Kramer-Moyal expansion. The Pawula theorem states that the expansion either stops after the first term or the second term. If the expansion continues past the second term it must contain an infinite number of terms, in order that the solution to the equation be interpretable as a probability density function.
+        - PDF equations can be solved using particle methods 
+        
+    - Results:
+        - Generalize in time
+            - Test on gradually farther portions of time.
+            - Now time_general measures error as a function of training set size
+        - Coefficient as a funciton of lambda
+        - Sensitivity analysis
+        - Error as a function of number of terms
+        - Generalization tests: error as a function of training/test generality
+        - Predictive ability vs. parsimony (as done in lipson's paper)
+
+Issues:
+    - Code Issues:
+        - Error doesn't change dramatically for a zero closure term.
+        - Error increases with T (training set size) for u0 exponential - Could be due to high nonlinearity at larger times.
+        - What's the difference between score and error? 
+        - Closure term fluctuates around zero when plotted
+
+    - Method:
+        - The solution domain should contain the whole PDF to learn better: this could be computationally expense. 
+        - A small error in the coefficient will cause a large one when integrated.
+
+Next Steps:
+    - Introduce variable coefficients
+    - Write in conservative form
+    - Learn PDF equations with known operator
+
+Suggested Improvements:
+    - Code:
+        - Function to get mean_square_error in PDFlearn
+
+    - Method:
+        - Compute derivatives analytically for better estimate of accuaracy
+        - Learn nonlocal terms (integrals)
+
+Analysis:
+    - Analyze difference between RMS error and Score
+
+Code Optimization:
+	- Visualization: 
+		- Unify 2D plots (plot_flabel and plot_fu, x and t)
+		- make global self.slider list and append sliders to it to avoid conflicts
+
+
+New Ideas:
+    - Learn the dynamics (equation) of a kinetic defect f(x, t) in the case of shocks.
+    - Learn integrator using neural network.
