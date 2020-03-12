@@ -1,9 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import burgers
-import weno_coefficients
 from scipy.optimize import brentq
-from weno_burgers import *
 from sklearn import linear_model
 import pdb
 from __init__ import *

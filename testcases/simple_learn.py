@@ -9,6 +9,7 @@ from pdfsolver import PdfSolver, PdfGrid
 from Learning import PDElearn
 from visualization import Visualize
 from scipy.signal import savgol_filter
+from sklearn.metrics import mean_squared_error
 import time
 import pdb
 from __init__ import *
@@ -71,8 +72,21 @@ else:
 
 difflearn = PDElearn(fuk, grid, kmean, fu=fu, trainratio=0.8, debug=False)
 
-difflearn.fit_all(feature_opt='1storder_close')
-difflearn.fit_all(feature_opt='2ndorder')
+varcoefopt = 'chebyshev'
+
+#difflearn.fit_all(feature_opt='1storder_close', variableCoef=False)
+#difflearn.fit_all(feature_opt='1storder_close', variableCoef=True, variableCoefBasis=varcoefopt, variableCoefOrder=1)
+#difflearn.fit_all(feature_opt='1storder_close', variableCoef=True, variableCoefBasis=varcoefopt, variableCoefOrder=2)
+#difflearn.fit_all(feature_opt='1storder_close', variableCoef=True, variableCoefBasis=varcoefopt, variableCoefOrder=3)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=False)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='chebyshev', variableCoefOrder=0)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=0)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='chebyshev', variableCoefOrder=2)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=2)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='chebyshev', variableCoefOrder=3)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=3)
+#difflearn.fit_all(feature_opt='2ndorder', variableCoef=False, variableCoefOrder=2)
+
 #difflearn.fit_all(feature_opt='all')
 #difflearn.fit_all(feature_opt='linear')
 #difflearn.fit_all(feature_opt='2ndorder')
@@ -81,12 +95,12 @@ difflearn.fit_all(feature_opt='2ndorder')
 V = Visualize(grid)
 #V.plot_fuk3D(fuk)
 #V.plot_fu3D(fu)
-V.plot_flabel3D(difflearn.labels)
-V.plot_fu(fu, 't', steps=5)
-V.plot_fu(fu, 'x', steps=5)
+#V.plot_flabel3D(difflearn.labels)
+#V.plot_fu(fu, 't', steps=5)
+#V.plot_fu(fu, 'x', steps=5)
 #V.plot_flabel(difflearn.labels, 't', steps=6)
 #V.plot_flabel(difflearn.labels, 'x', steps=5)
 
-V.show()
+#V.show()
 
 

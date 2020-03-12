@@ -1,23 +1,25 @@
 
 TO DO:
-    - Finalize paper
-    - Include integral term in features
     - Setup variable coefficients
+        - include conservative coefficients only
+    
+    - Evaluate errors
+        - analyze distribution of errors?
+
+    - print features: write function makeFeatureNames (includes ^{01} -> 1*x)
+    - fix plots
+
+    - Add initial condition training examples 
+        - require the same discretization (dU, dx, dt)
+
+    - Include integral term in features
+    - Test it on simple reaction case: du/dt = ku
+    - Implement SINDY
+
+    - split fit_all 
+    - Optimize makefeatures function options (too redundant)
 
 Paper:
-    - Suggested Titles:
-        - Distribution Equation Learning (DEL)
-        - Monte Carlo Based PDF Learning
-        - Simulation-based PDF Learning
-        - Probability Density Equation Learning (PDEL)
-        - Data-Driven PDF Equation Derivation  
-
-    - Intro:
-        - Add references: Hop Lipson's original paper. 
-        - Argue that this is more 'physics-informed' machine learning 
-        - Terms are known to be part of the Kramer-Moyal expansion. The Pawula theorem states that the expansion either stops after the first term or the second term. If the expansion continues past the second term it must contain an infinite number of terms, in order that the solution to the equation be interpretable as a probability density function.
-        - PDF equations can be solved using particle methods 
-        
     - Results:
         - Generalize in time
             - Test on gradually farther portions of time.
@@ -31,12 +33,12 @@ Paper:
 Issues:
     - Code Issues:
         - Error doesn't change dramatically for a zero closure term.
+        - Closure term fluctuates around zero when plotted
         - Error increases with T (training set size) for u0 exponential - Could be due to high nonlinearity at larger times.
         - What's the difference between score and error? 
-        - Closure term fluctuates around zero when plotted
 
     - Method:
-        - The solution domain should contain the whole PDF to learn better: this could be computationally expense. 
+        - The solution domain should contain the whole PDF to learn better: this could be computationally expensive 
         - A small error in the coefficient will cause a large one when integrated.
 
 Next Steps:
