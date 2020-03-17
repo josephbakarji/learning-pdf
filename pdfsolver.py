@@ -89,6 +89,8 @@ class PdfSolver:
             self.saveSolution(savedict=s, overwrite=False)
         return fuk, fu, kmean, self.grid.uu, self.grid.kk, self.grid.xx, self.grid.tt
 
+    #def integralMean(self, distribution_name, numerical_range=[-10, 10], 
+
     def setIC(self, option=1, muk=0, sigk=1, mink=0.0, maxk=1.0, sigu=1, a=1.0, b=0.0):
         self.ICopt = option
 
@@ -171,7 +173,7 @@ class PdfSolver:
 
     def loadSolution(self, loadname, ign=False, showparams=True):
 
-        loaddict = np.load(DATAFILE+loadname+'.npy')
+        loaddict = np.load(DATAFILE + loadname + '.npy')
         fuk = loaddict.item().get('fuk') 
         fu = loaddict.item().get('fu')
         kmean = loaddict.item().get('kmean')

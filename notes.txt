@@ -1,23 +1,76 @@
 
 TO DO:
-    - Setup variable coefficients
-        - include conservative coefficients only
-    
-    - Evaluate errors
-        - analyze distribution of errors?
+
+
+    - Streamline code
+        - save important optimization data in the results files, or in a speparate file 
+        - separate simlator from learner in testfiles
+        - Add initial condition training examples 
+            - Include meta data in files?
+            - train on examples with the same discretization (dU, dx, dt)
+        - fix vizualization module
 
     - print features: write function makeFeatureNames (includes ^{01} -> 1*x)
-    - fix plots
+    - Improve derivatives: Implement total variation regularized derivative
 
-    - Add initial condition training examples 
-        - require the same discretization (dU, dx, dt)
+    - Test it on simple reaction case: du/dt = ku
+
+    - Evaluate errors
+        - analyze distribution of errors and distribution of derivatives: we want the derivatives to be equaly represented
+        - error should be dependent on increments dU, dx, and dt. Quantify order of error
 
     - Include integral term in features
-    - Test it on simple reaction case: du/dt = ku
-    - Implement SINDY
+    
+    - Test if ranges of U, x, t makes a difference for variable coefficient learning
 
-    - split fit_all 
-    - Optimize makefeatures function options (too redundant)
+    - Test on 5-equation model
+
+
+Some more improvements:
+    - Code:
+        - Optimize makefeatures function options (too redundant)
+
+    - Method:
+        - Compute derivatives analytically for better estimate of accuaracy
+        - Learn nonlocal terms (integrals)
+
+	- Visualization: 
+		- Unify 2D plots (plot_flabel and plot_fu, x and t)
+		- make global self.slider list and append sliders to it to avoid conflicts
+
+
+-----------------------------------------------------------
+Issues And Discussion:
+
+    - Storage:
+        - Store in JSON format from dictionary in separate file
+        - Metadata to include:
+            - filename: keep the same?
+            - discretization size (or number of grid points)
+            - number of dimensions
+            - ranges 
+            - fu0_distribution: gaussian, uniform
+                - parameters: (mean, variance) for gaussian, (xmin, xmax) for uniform etc.
+            - fk_distribution: gaussian, uniform
+                - parameters: (mean, variance) for gaussian, (xmin, xmax) for uniform etc.
+            - u0: line, exp, sine etc.
+                - parameters: (a, b) for ax+b if line, (a, b) for a*exp(bx) exp, etc. 
+
+    - Robustness Analysis
+        - The robustness (and thus generalizability) of the method depends on the distribution of the derivatives being all equally represented. 
+        - If a stencil set of elements is the same, it's technically a redundant training example.
+
+    - Code Issues:
+        - Error doesn't change dramatically for a zero closure term.
+        - Closure term fluctuates around zero when plotted
+        - Error increases with T (training set size) for u0 exponential - Could be due to high nonlinearity at larger times.
+        - What's the difference between score and error? 
+
+    - Method:
+        - The solution domain should contain the whole PDF to learn better: this could be computationally expensive 
+        - A small error in the coefficient will cause a large one when integrated.
+
+-----------------------------------------------------------
 
 Paper:
     - Results:
@@ -30,37 +83,7 @@ Paper:
         - Generalization tests: error as a function of training/test generality
         - Predictive ability vs. parsimony (as done in lipson's paper)
 
-Issues:
-    - Code Issues:
-        - Error doesn't change dramatically for a zero closure term.
-        - Closure term fluctuates around zero when plotted
-        - Error increases with T (training set size) for u0 exponential - Could be due to high nonlinearity at larger times.
-        - What's the difference between score and error? 
-
-    - Method:
-        - The solution domain should contain the whole PDF to learn better: this could be computationally expensive 
-        - A small error in the coefficient will cause a large one when integrated.
-
-Next Steps:
-    - Introduce variable coefficients
-    - Write in conservative form
-    - Learn PDF equations with known operator
-
-Suggested Improvements:
-    - Code:
-        - Function to get mean_square_error in PDFlearn
-
-    - Method:
-        - Compute derivatives analytically for better estimate of accuaracy
-        - Learn nonlocal terms (integrals)
-
-Analysis:
-    - Analyze difference between RMS error and Score
-
-Code Optimization:
-	- Visualization: 
-		- Unify 2D plots (plot_flabel and plot_fu, x and t)
-		- make global self.slider list and append sliders to it to avoid conflicts
+-------------------------------------------------------------
 
 
 New Ideas:
