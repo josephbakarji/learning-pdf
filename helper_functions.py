@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def makesavename(IC, version):
     return 'u0'+IC['u0']+'_'+'fu0'+IC['fu0']+'_'+'fk'+IC['fk']+'_'+np.str(version)
 
@@ -32,3 +33,13 @@ def latexify(s):
         news.append(''.join(newelem))
 
     return news 
+
+def chebyshev_poly(i):
+    T = {0: '1',
+         1: 'x',
+         2: '2 * x^2 - 1',
+         3: '4 * x^3 - 3 * x',
+         4: '8 * x^4 - 8 * x^2 + 1',
+         5: '16 * x^5 - 20 * x^3 + 5*x',
+         6: '32 * x^6 - 48 * x^4 + 18*x^2 - 1'}
+    return T[i]

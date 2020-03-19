@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pdfsolver import PdfSolver, PdfGrid
 from Learning import PDElearn
+from datamanage import DataIO
 from visualization import Visualize
 from scipy.signal import savgol_filter
 from sklearn.metrics import mean_squared_error
@@ -15,48 +16,46 @@ import pdb
 from __init__ import *
 
 
-# TODO: Make all variables inputs to simulation here - IC
-
-dt = 0.05
+dt = 0.5
 t0 = 0
 tend = 5 
 nt = int((tend-t0)/dt)
 
-dx = 0.05 
+dx = 0.5 
 x0 = -2.5
 xend = 2.5
 nx = int((xend-x0)/dx) 
 
-dk = 0.1
+dk = 0.5
 k0 = -0.5
 kend = 1.5 
 nk = int((kend-k0)/dk) 
 
-du = 0.05 
+du = 0.5 
 u0 = -5
 uend = 3
 nu = int((uend-u0)/du) 
 
-
-muk=0.2
+muk=0.1
 sigk=3
-sigu=1.1
+sigu0=1.1
 mink=0.0
-maxk=1.0
+maxk=1.1
+
 a=1.0
-b=0.0
+b=0.5
 
-runsimulation = 0
-IC_opt = 1
+gridvars = {'u': [u0, uend, du], 'k': [k0, kend, dk], 't': [t0, tend, dt], 'x':[x0, xend, dx]}
+ICparams = {'u0':'line', 
+          'u0param': [a, b], 
+          'fu0':'gaussian', 
+          'fu0param': sigu0, 
+          'fk':'uniform', 
+          'fkparam': [mink, maxk]}
+case = 'advection_marginal'
 
-solvopt = 'RandomKadvection' 
-sname = ''
-
-grid = PdfGrid(x0=x0, xend=xend, k0=k0, kend=kend, t0=t0, tend=tend, u0=u0, uend=uend, nx=nx, nt=nt, nk=nk, nu=nu)
-S = PdfSolver(grid, save=True, savename=sname)
-S.setIC(option=IC_opt, a=a, b=b, mink=mink, maxk=maxk, muk=muk, sigk=sigk, sigu=sigu)
-
-t0 = time.time()
-fuk, fu, kmean, uu, kk, xx, tt= S.solve(solver_opt=solvopt)
-print('Compute time = ', time.time()-t0)
+# Solve
+grid = PdfGrid(gridvars)
+S = PdfSolver(grid, ICparams, save=True, case=case)
+S.solve() # no need to return anything
 

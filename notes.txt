@@ -1,14 +1,18 @@
 
 TO DO:
 
+	- write code that creates examples with various initial conditions 
+	- write filter code in DataIO that picks out files with certain properties
+        - examples: linear u0, gaussian k, same discretization (dU, dx, dt)
+
+	- test impact of range on variable coefficient
 
     - Streamline code
-        - save important optimization data in the results files, or in a speparate file 
         - separate simlator from learner in testfiles
         - Add initial condition training examples 
-            - Include meta data in files?
             - train on examples with the same discretization (dU, dx, dt)
         - fix vizualization module
+        - replace casefolder by casedir = DATAFILE + casefolder, and when relevant casefolder with case
 
     - print features: write function makeFeatureNames (includes ^{01} -> 1*x)
     - Improve derivatives: Implement total variation regularized derivative
@@ -16,7 +20,7 @@ TO DO:
     - Test it on simple reaction case: du/dt = ku
 
     - Evaluate errors
-        - analyze distribution of errors and distribution of derivatives: we want the derivatives to be equaly represented
+        - analyze distribution of errors AND distribution of derivatives: we want the derivatives to be equaly represented
         - error should be dependent on increments dU, dx, and dt. Quantify order of error
 
     - Include integral term in features
