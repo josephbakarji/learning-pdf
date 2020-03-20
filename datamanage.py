@@ -1,6 +1,7 @@
 import numpy as np
 from random import randint
 import json
+from tabulate import tabulate
 import pdb
 from __init__ import *
 
@@ -96,8 +97,107 @@ class DataIO:
                         print("Skipping case")
 
         return exists
-        
-    #def printMetadata(self):
+       
+##########################
 
-    #def filterSolution(self, condition):
-        # Find solutions with the relevant conditions - example: linear IC
+#{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
+#{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
+
+    def printMetadata(self, filter_filenames=None):
+        # Print metadata in table form in the terminal
+
+        with open(self.casedir+'metadata.txt') as jsonfile:
+            allmetadata = json.load(jsonfile)
+        
+        # Get header
+        heads = ['File Name']
+        for filename, data in allmetadata.items(): 
+            for propval in data.values(): # 'ICparams': ..., 'gridvars':...,
+                for key in propval.keys():
+                    heads.append(key)
+            break
+        
+        # Put elements in lists
+        full_list = []
+        for filename, data in allmetadata.items(): 
+            if filter_filenames != None:
+                if filename not in filter_filenames:
+                    continue
+
+            single_run = [filename]
+            for propval in data.values(): # 'ICparams': ..., 'gridvars':...,
+                for val in propval.values():
+                    single_run.append(val)
+            full_list.append(single_run)
+        
+        # Print table
+        print(tabulate(full_list, headers= heads, tablefmt='fancy_grid'))
+
+
+    def filterSolutions(self, req_properties):
+        # return names or runs with the relevant properties
+        # EX: properties = {'u0': 'linear', 'dx': 0.05}
+        #
+        # 'dx', 'du', 'dt', 'dk': checks last element of each of gridvars
+        # 'u0': 'exponential'
+        # 'u0param': [1.0, 0.0], 
+        # 'fu0': 'gaussian', 
+        # 'fu0param': 1.1, 
+        # 'fk': 'uniform', 
+        # 'fkparam': [0.0, 1.0]}
+        # 'u': [-5, 3, 0.05], 
+        # 'k': [-0.5, 1.5, 0.05], 
+        # 't': [0, 5, 0.05], 
+        # 'x': [-2.5, 2.5, 0.05]}
+
+        # Special characters to be interpreted:
+
+        
+        def checkProperties(req_properties, data):
+            # Loop through ALL requested properties and check if they ALL match
+            special_props = set({'dx', 'du', 'dt', 'dk', 'xrange', 'urange', 'trange', 'krange'})
+            for req_prop, val in req_properties.items():
+                if req_prop in special_props:
+                    if req_prop == 'dx' and data['gridvars']['x'][2] != val:
+                        return False
+                    elif req_prop == 'du' and data['gridvars']['u'][2] != val:
+                        return False
+                    elif req_prop == 'dt' and data['gridvars']['t'][2] != val:
+                        return False
+                    elif req_prop == 'dk' and data['gridvars']['k'][2] != val:
+                        return False
+                    elif req_prop == 'xrange' and data['gridvars']['x'][:2] != val:
+                        return False
+                    elif req_prop == 'urange' and data['gridvars']['u'][:2] != val:
+                        return False
+                    elif req_prop == 'trange' and data['gridvars']['t'][:2] != val:
+                        return False
+                    elif req_prop == 'krange' and data['gridvars']['k'][:2] != val:
+                        return False
+
+                else:
+                    for propval in data.values(): # 'ICparams': ..., 'gridvars':...,
+                        if req_prop in propval.keys():
+                            if propval[req_prop] != req_properties[req_prop]:
+                                return False
+            return True
+
+
+        with open(self.casedir+'metadata.txt') as jsonfile:
+            allmetadata = json.load(jsonfile)
+
+        matching_solutions = [] 
+        for filename, data in allmetadata.items():
+            if checkProperties(req_properties, data):
+                matching_solutions.append(filename)
+        
+        return matching_solutions
+            
+
+
+if __name__ == "__main__":
+    D = DataIO('advection_marginal') 
+    D.printMetadata()
+    req_properties = {'u0': 'line'}
+    req_filenames = D.filterSolutions(req_properties)
+    D.printMetadata(filter_filenames=req_filenames)
