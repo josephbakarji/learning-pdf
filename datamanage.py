@@ -19,7 +19,6 @@ class DataIO:
         for f in os.listdir(self.casedir):
             if f.split('.')[-1] == 'npy':
                 savedfiles.add(f.split('.')[0])
-
         savename = self.case+ '_' + str(randint(0, 10000))
         while savename in savedfiles:
             savename = self.case+ '_' + str(randint(0, 10000))
@@ -35,13 +34,18 @@ class DataIO:
 
         # Create metadata file if it doesn't exist
         # It it exists, it's assumed to be not empty
-        if not os.path.isfile(self.casedir+'metadata.txt'):
+        fileexists = os.path.isfile(self.casedir+'metadata.txt')
+        if not fileexists:
             ff = open(self.casedir+'metadata.txt', 'w+')
             ff.close()
             allmetadata = {}
         else:
-            with open(self.casedir+'metadata.txt') as jsonfile:
-                allmetadata = json.load(jsonfile)
+            ff = open(self.casedir+'metadata.txt', 'r')
+            if ff.read() == '':
+                allmetadata = {}
+            else:
+                with open(self.casedir+'metadata.txt') as jsonfile:
+                    allmetadata = json.load(jsonfile)
 
         # Update and save metadata
         allmetadata[self.savename] = metadata
@@ -51,9 +55,11 @@ class DataIO:
         ## Saving solutions dictionary fuk, fu, gridvars.
         np.save(self.casedir + self.savename + '.npy', solution_dict)
 
+        return self.savename
+
 ##########################
 
-    def loadSolution(self, loadnamenpy):
+    def loadSolution(self, loadnamenpy, array_opt='joint'):
         # input: loadname (with .npy)
         # Load metadata
         loadname = loadnamenpy.split('.')[0]
@@ -64,46 +70,59 @@ class DataIO:
         else:
             metadata = allmetadata[loadname]
 
-
         loaddict = np.load(self.casedir + loadnamenpy )
-        fuk = loaddict.item().get('fuk') 
+
         fu = loaddict.item().get('fu')
         gridvars = loaddict.item().get('gridvars')
-
 
         ICparams= metadata['ICparams']
         if self.verbose:
             print(ICparams)
             print(gridvars)
 
-        return fuk, fu, gridvars, ICparams
+        if self.case == 'advection_marginal' and array_opt=='joint':
+            fuk = loaddict.item().get('fuk') 
+            return fuk, fu, gridvars, ICparams
+        else:
+            return fu, gridvars, ICparams
 
 ##########################
 
     def checkMetadataInDir(self, metadata, throwException=False):
         # Check if the same metadata (IC parameters) already exist
-        # Make sure file is not empty (empty file is not accounted for, if it is rm it)
         exists = False
-        with open(self.casedir+'metadata.txt') as jsonfile:
-            allmetadata = json.load(jsonfile)
+        
+        # Check if metadata.txt doesn't exist 
+        if not os.path.isfile(self.casedir+'metadata.txt'):
+            ff = open(self.casedir+'metadata.txt', 'w+')
+            ff.close()
+        else:
+            ff = open(self.casedir+'metadata.txt', 'r')
+            if ff.read() == '':
+                allmetadata = {}
 
-            for filename, data in allmetadata.items():
-                if metadata == data:  
-                    exists = True
-                    if throwException:
-                        raise Exception("Same metadata already exists in file: %s"%(filename)) 
-                    else:
-                        print("Same metadata already exists in file: %s"%(filename)) 
-                        print("Skipping case")
+            else:
+                with open(self.casedir + 'metadata.txt') as jsonfile:
+                    allmetadata = json.load(jsonfile)
+
+                    for filename, data in allmetadata.items():
+                        if metadata == data:  
+                            exists = True
+                            if throwException:
+                                raise Exception("Same metadata already exists in file: %s"%(filename)) 
+                            else:
+                                print("Same metadata already exists in file: %s"%(filename)) 
+                                print("Skipping case")
 
         return exists
        
 ##########################
 
-#{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
-#{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
 
     def printMetadata(self, filter_filenames=None):
+        #{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
+        #{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
+
         # Print metadata in table form in the terminal
 
         with open(self.casedir+'metadata.txt') as jsonfile:
@@ -156,6 +175,13 @@ class DataIO:
         def checkProperties(req_properties, data):
             # Loop through ALL requested properties and check if they ALL match
             special_props = set({'dx', 'du', 'dt', 'dk', 'xrange', 'urange', 'trange', 'krange'})
+
+            # No nos
+            if 'u0param' in data['ICparams'] and 'u0' in data['ICparams']:
+                if data['ICparams']['u0'] == 'gaussian' and data['ICparams']['u0param'][1] == 0.0:
+                    return False
+
+            # Processed special inputs
             for req_prop, val in req_properties.items():
                 if req_prop in special_props:
                     if req_prop == 'dx' and data['gridvars']['x'][2] != val:
@@ -200,4 +226,4 @@ if __name__ == "__main__":
     D.printMetadata()
     req_properties = {'u0': 'line'}
     req_filenames = D.filterSolutions(req_properties)
-    D.printMetadata(filter_filenames=req_filenames)
+    #D.printMetadata(filter_filenames=req_filenames)

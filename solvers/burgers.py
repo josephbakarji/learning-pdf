@@ -84,7 +84,6 @@ class Simulation(object):
         self.t = 0.0
         self.C = C
 
-
     def init_cond(self, type="tophat", u=None):
 
         if type == "tophat":

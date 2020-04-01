@@ -13,50 +13,43 @@ class PdfGrid:
 
     def setGridParams(self, gridvars):
         self.gridvars = gridvars
-        self.x0     = gridvars['x'][0] 
-        self.xend   = gridvars['x'][1] 
-        self.nx     = int( (gridvars['x'][1] - gridvars['x'][0]) / gridvars['x'][2] )
-        self.t0     = gridvars['t'][0]                                               
-        self.tend   = gridvars['t'][1]                                                
-        self.nt     = int( (gridvars['t'][1] - gridvars['t'][0]) / gridvars['t'][2] )
-        self.k0     = gridvars['k'][0]                                               
-        self.kend   = gridvars['k'][1]                                                
-        self.nk     = int( (gridvars['k'][1] - gridvars['k'][0]) / gridvars['k'][2] )
-        self.u0     = gridvars['u'][0]                                               
-        self.uend   = gridvars['u'][1]                                               
-        self.nu     = int( (gridvars['u'][1] - gridvars['u'][0]) / gridvars['u'][2] )
-        self.xx     = np.linspace(self.x0, self.xend, self.nx)
-        self.tt     = np.linspace(self.t0, self.tend, self.nt)
-        self.uu     = np.linspace(self.u0, self.uend, self.nu)
-        self.kk     = np.linspace(self.k0, self.kend, self.nk)
+
+        if 'x' in gridvars:
+            self.x0     = gridvars['x'][0] 
+            self.xend   = gridvars['x'][1] 
+            self.nx     = round( (gridvars['x'][1] - gridvars['x'][0]) / gridvars['x'][2] )
+            self.xx     = np.linspace(self.x0, self.xend, self.nx)
+
+        if 't' in gridvars: 
+            self.t0     = gridvars['t'][0]                                               
+            self.tend   = gridvars['t'][1]                                                
+            self.nt     = round( (gridvars['t'][1] - gridvars['t'][0]) / gridvars['t'][2] )
+            self.tt     = np.linspace(self.t0, self.tend, self.nt)
+
+        if 'k' in gridvars:
+            self.k0     = gridvars['k'][0]                                               
+            self.kend   = gridvars['k'][1]                                                
+            self.nk     = round( (gridvars['k'][1] - gridvars['k'][0]) / gridvars['k'][2] )
+            self.kk     = np.linspace(self.k0, self.kend, self.nk)
+
+        if 'u' in gridvars: 
+            self.u0     = gridvars['u'][0]                                               
+            self.uend   = gridvars['u'][1]                                               
+            self.nu     = round( (gridvars['u'][1] - gridvars['u'][0]) / gridvars['u'][2] )
+            self.uu     = np.linspace(self.u0, self.uend, self.nu)
+            
 
     def blank_pdf(self, variables):
-        if variables=='uk': 
+        if variables=='ukx': 
             return np.zeros((len(self.uu), len(self.kk), len(self.xx), len(self.tt)))
-        elif variables=='u':
+        elif variables=='ux':
             return np.zeros((len(self.uu), len(self.xx), len(self.tt)))
+        elif variables=='u':
+            return np.zeros((len(self.uu), len(self.tt)))
         else:
             print('invalid variable option')
             return None
 
-    def setGridArray(self, x, t, u, k=None):
-        self.x0 = x[0] 
-        self.xend = x[-1] 
-        self.nx = len(x) 
-        self.t0 = t[0] 
-        self.tend = t[-1]
-        self.nt = len(t) 
-        self.k0 = k[0] 
-        self.kend = k[-1] 
-        self.nk = len(k) 
-        self.u0 = u[0] 
-        self.uend = u[-1]
-        self.nu = len(u) 
-        self.xx = x
-        self.tt = t
-        self.uu = u
-        self.kk = k
-    
     def printDetails(self):
         print("x0 = %5.2f | xend = %5.2f | nx = %d | dx = %5.3f"%(self.x0, self.xend, self.nx, self.xx[1]-self.xx[0]))
         print("t0 = %5.2f | tend = %5.2f | nt = %d | dt = %5.3f"%(self.t0, self.tend, self.nt, self.tt[1]-self.tt[0]))
@@ -77,8 +70,7 @@ class PdfSolver:
         self.grid = grid
         self.save = save
         if ICparams is not None:
-            self.setIC(ICparams)
-
+            self.setIC(ICparams) 
         # Define functions and distributions
         self.gauss_dist = lambda x, mu, sig : 1/(np.sqrt(2 * np.pi * sig**2)) * np.exp( - (x - mu)**2/(2*sig**2) )
         self.uniform_dist = lambda x, minx, maxx: 1/(maxx - minx) * (np.heaviside(x - minx, 1/2) - np.heaviside(x - maxx, 1/2))
@@ -89,12 +81,13 @@ class PdfSolver:
 
     def solve(self):
         # Main solver 
-
         # Check if same problem setup already exist
         d = DataIO(self.case)
         metadata = {'ICparams': self.ICparams, 'gridvars': self.grid.gridvars}
         fileexists = d.checkMetadataInDir(metadata)
+
         if self.verbose:
+            print('File exists = ' + str(fileexists))
             print('ICparams: ')
             print(self.ICparams)
             print('gridvars: ')
@@ -103,54 +96,139 @@ class PdfSolver:
 
         if not fileexists:
             # Populate arrays for fu and fuk
-            fuk = self.solveAnalytical()
-            fu = self.computeMarginal(fuk, 2)
+            f = self.solveAnalytical()
+
+            if self.case == 'advection_marginal':
+                fu = self.computeMarginal(f, 2)
+                solution = {'fuk': f, 'fu': fu, 'gridvars': self.grid.gridvars} # redundancy of grid..
+            elif self.case == 'reaction_linear':
+                solution = {'fu': f, 'gridvars': self.grid.gridvars} # redundancy of grid..
 
             # save
             if self.save:
-                solution = {'fuk': fuk, 'fu': fu, 'gridvars': self.grid.gridvars} # redundancy of grid..
                 saver = DataIO(self.case)
                 saver.saveSolution(solution, metadata)
                 
-            return fuk, fu, self.grid.gridvars, self.ICparams
+            #return fuk, fu, self.grid.gridvars, self.ICparams
 
-    def int_kmean(self):
-        kext = np.linspace(-10, 10, 1000)
-        fk_dist = lambda x: self.fundict[self.ICparams['fk']](x, self.ICparams['fkparam'][0], self.ICparams['fkparam'][1])
-        fkd = [fk_dist(kext[i]) for i in range(len(kext))]
-        kmean = np.sum(kext[1:]*fkd[1:]*np.diff(kext))
-        return kmean
+    def solve_fu(self):
+        d = DataIO(self.case)
+        metadata = {'ICparams': self.ICparams, 'gridvars': self.grid.gridvars}
+        fileexists = d.checkMetadataInDir(metadata)
 
+        if self.verbose:
+            print('File exists = ' + str(fileexists))
+            print('ICparams: ')
+            print(self.ICparams)
+            print('gridvars: ')
+            print(self.grid.gridvars)
+            print('-------')
+
+        if not fileexists:
+            fu = self.computeMarginal_analytical()
+            solution = {'fu': fu, 'gridvars': self.grid.gridvars} # redundancy of grid..
+
+            # save
+            if self.save:
+                saver = DataIO(self.case)
+                savename = saver.saveSolution(solution, metadata)
+                return savename
+            #return fuk, fu, self.grid.gridvars, self.ICparams
 
     def setIC(self, ICparams):
         # Set initial condition from IC parameters
         self.ICparams = ICparams 
-        u_init = lambda x: self.fundict[ICparams['u0']](x, ICparams['u0param'][0], ICparams['u0param'][1])
-        fu0_dist = lambda U, x : self.fundict[ICparams['fu0']](U, u_init(x), ICparams['fu0param']) 
-        fk_dist = lambda K : self.fundict[ICparams['fk']](K, ICparams['fkparam'][0], ICparams['fkparam'][1])
-        self.fuk_init = lambda U, K, x, t: fu0_dist(U, x - K*t) * fk_dist(K)
+
+        if self.case == 'advection_marginal':
+            if ICparams['fu0'] == 'gaussian':
+                u_init = lambda x: self.fundict[ICparams['u0']](x, ICparams['u0param'][0], ICparams['u0param'][1])
+                fu0_dist = lambda U, x : self.fundict[ICparams['fu0']](U, u_init(x), ICparams['fu0param']) 
+            elif ICparams['fu0'] == 'compact_gaussian':
+                mu_x = ICparams['fu0param'][0]
+                sigma_x = ICparams['fu0param'][1]
+                mu_U = ICparams['fu0param'][2]
+                sigma_U = ICparams['fu0param'][3]
+                rho = ICparams['fu0param'][4] # Correlation between x and y
+                intx = np.sum( self.fundict['gaussian'](g.xx, mu_x, sigma_x) * (g.xx[1]-g.xx[0]) )
+                fu0_dist = lambda U, x : self.fundict['gaussian'](U, mu_U, sigma_U) * self.fundict['gaussian'](x, mu_x, sigma_x)/intx
+                    #1/(2 * np.pi * sigma_U * np.sqrt(1 - rho**2)) * np.exp(-1/(2*(1-rho**2)) \
+                    #* ((x - mu_x)**2/(sigma_x**2) + (U - mu_U)**2/(sigma_U**2) - (2*rho*(x - mu_x)*(U - mu_U))/(sigma_x*sigma_U)))
+
+            fk_dist = lambda K : self.fundict[ICparams['fk']](K, ICparams['fkparam'][0], ICparams['fkparam'][1])
+            self.fuk_analytical = lambda U, K, x, t: fu0_dist(U, x - K*t) * fk_dist(K)
+
+        elif self.case == 'reaction_linear':
+            fu0_dist = lambda U: self.fundict[ICparams['fu0']](U, ICparams['u0'], ICparams['fu0param']) 
+            self.fu_analytical = lambda U, t: fu0_dist(U * np.exp(- ICparams['k'] * t)) * np.exp(- ICparams['k'] * t)
+
+        else:
+            raise Exception('case doesn"t exist')
+
 
     def solveAnalytical(self):
         # Populate fuk(U, K; x, t) array
         g = self.grid
         if self.case == 'advection_marginal':
-            fuk = self.grid.blank_pdf('uk')
+            fuk = self.grid.blank_pdf('ukx')
             print('populating fuk...')
             for tidx, t in enumerate(g.tt):
                 for Uidx, U in enumerate(g.uu):
                     for Kidx, K in enumerate(g.kk):
                         for xidx, x in enumerate(g.xx):
-                            fuk[Uidx, Kidx, xidx, tidx] = self.fuk_init(U, K, x-K*t, t)
-        return fuk
+                            fuk[Uidx, Kidx, xidx, tidx] = self.fuk_analytical(U, K, x, t) 
+            return fuk
+
+        elif self.case == 'reaction_linear':
+            fu = self.grid.blank_pdf('u')
+            print('populating fu...')
+            for tidx, t in enumerate(g.tt):
+                for Uidx, U in enumerate(g.uu):
+                    fu[Uidx, tidx] = self.fu_analytical(U, t)
+            return fu
+
+    def solveAnalytical_marginal(self):
+        g = self.grid
+        if self.case == 'advection_marginal':
+            print('populating fu in advection_marginal ...')
+
+
+    # Functions for 'advection_marginal' case
+    def int_kmean(self):
+        kext = np.linspace(-10, 10, 1000)
+        fk_dist = lambda x: self.fundict[self.ICparams['fk']](x, self.ICparams['fkparam'][0], self.ICparams['fkparam'][1])
+        fkd = [fk_dist(kext[i]) for i in range(len(kext))]
+        kmean = np.sum(kext[1:]*fkd[1:]*np.diff(kext))
+        print('kmean=', kmean)
+        return kmean
 
     def computeMarginal(self, fuk, dimension):
         if dimension == 2:
             g = self.grid
-            fu = g.blank_pdf('u')
+            fu = g.blank_pdf('ux')
             for tidx, t in enumerate(g.tt):
                 for Uidx, U in enumerate(g.uu):
                     for xidx, x in enumerate(g.xx):
                         fu[Uidx, xidx, tidx] = np.sum( (fuk[Uidx, 1:, xidx, tidx] + fuk[Uidx, :-1, xidx, tidx])/2.0 * np.diff(g.kk) )
+            return fu
+        else:
+            print('dimension marginal not coded')
+            return None
+
+    def computeMarginal_analytical(self, dimension=2):
+        # !!! Assumes range of k to be all included such that int(k)=1. If domain is truncated, marginal is not accurate !!!
+        if dimension == 2:
+            g = self.grid
+            fu = g.blank_pdf('ux')
+            UU, KK = np.meshgrid(g.uu[1:], g.kk[1:], indexing='ij')
+            dk = g.kk[1]-g.kk[0]
+            du = g.uu[1]-g.uu[0]
+            for tidx, t in enumerate(g.tt):
+                print(t)
+                for xidx, x in enumerate(g.xx):
+                    totalint = np.sum(np.sum( self.fuk_analytical(UU, KK, x, t) * dk * du ))
+                    print(totalint)
+                    for Uidx, U in enumerate(g.uu):
+                        fu[Uidx, xidx, tidx] = np.sum( self.fuk_analytical(U, g.kk[:-1], x, t) * np.diff(g.kk) )
             return fu
         else:
             print('dimension marginal not coded')

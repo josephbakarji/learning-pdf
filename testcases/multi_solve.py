@@ -21,32 +21,32 @@ dx      = 0.05
 dk      = 0.1
 du      = 0.05 
 
-t_range     = (0, 5)
-x_range     = [(-3, 3), (-4, 4)]
-k_range     = [(-2, 3), (-1, 2)] 
+t_range     = (0, 3)
+x_range     = [(-2.5, 2.5), (-3, 3), (-4, 4)]
+k_range     = [(-1.0, 1.0), (-2, 3), (-1, 2)] 
 u_range     = [(-5, 3), (-7, 4), (-8, 8)]
 
-muk     = [-0.2, 0.0, 0.4]
+muk     = [0.1, -0.2, 0.0, 0.4]
 sigk    = [1, 2, 3]
 
 mink    = [0.0, -0.3]
 maxk    = [1.0, 1.3] 
 
-sigu0   = [0.3, 1.1, 1.6]
+sigu0   = [1.1, 0.3, 1.6]
 
-a = [0.5, 1.0, 2.0, 4.0]
-b = [0.0, 0.5, 1.0, 3.0]
+a = [-.5, 0.5, 1.0, 2.0]
+b = [0.8, 0.5, 1.0, 3.0]
 
 k_dist = ['gaussian', 'uniform']
-u0type = ['line', 'exponential', 'sine']
+u0type = ['gaussian', 'line', 'exponential', 'sine']
 case = 'advection_marginal'
 
 for k0, kend in k_range:
     for u0, uend in u_range: 
         for x0, xend in x_range:
 
-            for sigu0i in sigu0:
-                for u0typei in u0type:
+            for u0typei in u0type:
+                for sigu0i in sigu0:
                     for ai, bi in zip(a, b):
 
                         for k_disti in k_dist:
@@ -66,7 +66,7 @@ for k0, kend in k_range:
                                             'fu0param': sigu0i, 
                                             'fk': k_disti, 
                                             'fkparam': [kparam1i, kparam2i]}
-# Solve
+
                                 grid = PdfGrid(gridvars)
                                 S = PdfSolver(grid, ICparams, save=True, case=case)
                                 S.solve() 

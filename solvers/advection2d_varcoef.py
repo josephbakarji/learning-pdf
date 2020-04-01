@@ -36,24 +36,6 @@ mpl.rcParams['mathtext.fontset'] = 'cm'
 mpl.rcParams['mathtext.rm'] = 'serif'
 
 
-# helper functions for the limiting
-def minmod(a, b):
-    if abs(a) < abs(b) and a*b > 0.0:
-        return a
-    elif abs(b) < abs(a) and a*b > 0.0:
-        return b
-    else:
-        return 0.0
-
-def maxmod(a, b):
-    if abs(a) > abs(b) and a*b > 0.0:
-        return a
-    elif abs(b) > abs(a) and a*b > 0.0:
-        return b
-    else:
-        return 0.0
-
-
 class Grid2d(object):
 
     def __init__(self, nx, ny, ng, ymin=0.0, ymax=1.0, xmin=0.0, xmax=1.0):
@@ -132,7 +114,6 @@ class Simulation(object):
         self.slope_type = slope_type
         self.k = k 
         self.src = lambda x: x**power
-        self.src_der = lambda x: 2*x
 
 
     def init_cond(self, type="tophat", params=None):
@@ -199,53 +180,35 @@ class Simulation(object):
         for j in range(g.iloy-1, g.ihiy+2):
             # down state on the current interface comes from zone i-1
             # Try getting rid of the coefficient because it's part of the flux
-            #u = self.src_der(g.Y[:, j-1])*(g.a[:,j-1]/slopey[:,j-1])+self.src(g.Y[:,j-1])
-            ad[:, j] = g.a[:, j-1] + 0.5*g.dy*(1.0 - self.src(g.Y[:,j-1]) * dt/g.dy) * slopey[:, j-1] - 0.5* dt*g.a[:, j] * self.src_der(g.Y[:, j])
+            ad[:, j] = g.a[:, j-1] + 0.5*g.dy*(1.0 - self.src(g.Y[:, j-1]) *dt/g.dy) * slopey[:, j-1]
 
             # up state on the current interface comes from zone i
-            #u = self.src_der(g.Y[:, j])*(g.a[:,j]/slopey[:,j])+self.src(g.Y[:,j])
-            au[:, j] = g.a[:, j] - 0.5*g.dy* (1.0 + self.src(g.Y[:,j]) * dt/g.dy) * slopey[:, j] - 0.5*dt*g.a[:, j] * self.src_der(g.Y[:, j]) 
+            au[:, j] = g.a[:, j] - 0.5*g.dy* (1.0 + self.src(g.Y[:, j]) *dt/g.dy) * slopey[:, j]
         return al, ar, ad, au
 
 
-    def riemannx(self, al, ar):
+    def riemannx(self):
         """
         Riemann problem for advection -- this is simply upwinding,
         but we return the flux
         """
-        flux = self.grid.scratch_array()
-        for i in range(al.shape[0]):
-            for j in range(al.shape[1]):
-                if self.k > 0.0:
-                    flux[i, j] = self.k * al[i, j]
-                else:
-                    flux[i, j] = self.k * ar[i, j]
-        return flux
-
-    def riemanny(self, ad, au):
-        """
-        Riemann problem for advection -- this is simply upwinding,
-        but we return the flux
-        """
-        flux = self.grid.scratch_array()
         g = self.grid
+        flux = self.grid.scratch_array()
         for i in range(flux.shape[0]):
             for j in range(flux.shape[1]):
-                if j == 0:
-                    slopey = (g.a[i, j+1] - g.a[i, j])/g.dy
-                elif j == flux.shape[1]-1:
-                    slopey = (g.a[i, j] - g.a[i, j-1])/g.dy
-                else:
-                    slopey = 0.5*(g.a[i, j+1] - g.a[i, j-1])/g.dy
+                flux[i, j] = self.k * g.a[i, j]
+        return flux
 
-                u = self.src(g.Y[i, j]) 
-                #uactual=self.src_der(g.Y[i, j])*(g.a[i, j]/slopey)+self.src(g.Y[i, j])
-                
-                #if self.src_der(g.Y[i, j])*g.a[i, j] < slopey*self.src(g.Y[i, j]) :
-                if u > 0.0:
-                    flux[i, j] = self.src(g.Y[i, j]) * ad[i, j] # Try the average
-                else:
-                    flux[i, j] = self.src(g.Y[i, j]) * au[i, j]
+    def riemanny(self):
+        """
+        Riemann problem for advection -- this is simply upwinding,
+        but we return the flux
+        """
+        g = self.grid
+        flux = self.grid.scratch_array()
+        for i in range(flux.shape[0]):
+            for j in range(flux.shape[1]):
+                flux[i, j] = self.src(g.Y[i, j]) * g.a[i, j]
         return flux
 
     def update(self, dt, fluxx, fluxy):
@@ -256,7 +219,7 @@ class Simulation(object):
 
         for i in range(g.ilox, g.ihix+2):
             for j in range(g.iloy, g.ihiy+2):
-                anew[i, j] = g.a[i, j] + dt/g.dx * (fluxx[i, j] - fluxx[i+1, j]) + dt/g.dy * (fluxy[i, j] - fluxy[i, j+1])
+                anew[i, j] = g.a[i, j] + 0.5*dt/g.dx * (fluxx[i-1, j] - fluxx[i+1, j]) + 0.5*dt/g.dy * (fluxy[i, j-1] - fluxy[i, j+1]) 
 
         return anew
 
@@ -294,8 +257,8 @@ class Simulation(object):
             al, ar, ad, au = self.states(dt)
 
             # solve the Riemann problem at all interfaces
-            fluxx = self.riemannx(al, ar)
-            fluxy = self.riemanny(ad, au)
+            fluxx = self.riemannx()
+            fluxy = self.riemanny()
 
             # do the conservative update
             g.a[:, :] = self.update(dt, fluxx, fluxy)

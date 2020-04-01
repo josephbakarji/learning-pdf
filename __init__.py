@@ -4,3 +4,5 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 MAIN = current_dir 
 DATAFILE = current_dir+"/datafile/"
 FIGFILE = current_dir+"/figures/"
+SOLVERDIR = current_dir+"/solvers/"
+MCDIR = SOLVERDIR + 'MCresults/' 

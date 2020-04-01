@@ -1,6 +1,15 @@
 import numpy as np
+from math import ceil, floor
 
 
+def myfloor(x):
+    n = 8 # Can be added as input
+    return floor(x*10.0**n)/10.0**n
+
+def myceil(x):
+    n = 8 # Can be added as input
+    return ceil(x*10.0**n)/10.0**n
+    
 def makesavename(IC, version):
     return 'u0'+IC['u0']+'_'+'fu0'+IC['fu0']+'_'+'fk'+IC['fk']+'_'+np.str(version)
 

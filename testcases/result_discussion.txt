@@ -2,8 +2,91 @@
 
 --- PROBLEMS THAT DON'T CONVERGE:
 
-'advection_marginal_5828.npy'
-{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
-{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
+{'u0': 'line', 'u0param': [1.0, 0.1], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.01]}
+{'u': [-5, 3, 0.03], 'k': [-0.5, 1.5, 0.08], 't': [0, 5, 0.03], 'x': [-2.5, 2.5, 0.03]}
+
+- Comparing 1storder and 1storder close
+    - k_mean is correctly predicted and replaced (as -0.5)
+    - RMSE almost the same but score is much lower for 1storder_close (0.50) 
 
 
+
+---- Errors ----
+Train Score 	= 0.443
+Test Score 	= 0.419
+Train RMSE 	= 4.358e-03
+Test RMSE 	= 4.358e-03
+---- Coefficients ----
+fu_x^{00} 	:	 -0.191104358
+fu_xx^{00} 	:	 0.106558137
+
+Optimal: fu_t + .2 fu_x - .1 fu_xx = 0
+
+
+#############################################
+
+---- Errors ----
+Train Score 	= 0.527
+Test Score 	= 0.503
+Train RMSE 	= 4.359e-03
+Test RMSE 	= 4.359e-03
+---- Coefficients ----
+fu_x^{00} 	:	 -0.248923432
+fu_xx^{00} 	:	 0.105271919
+fu_xx^{20} 	:	 0.003153498
+fu_xxx^{00} 	:	 -0.004482108
+fu_U^{00} 	:	 0.006923069
+fu_U^{02} 	:	 -0.002088465
+
+
+#############################
+Learns Burgers CDF equation
+ 
+Features option: 1storder
+---- Errors ----
+Train Score 	= 0.999
+Test Score 	= 0.997
+Train RMSE 	= 1.856e-02
+Test RMSE 	= 1.430e-02
+---- Coefficients ----
+fu_xx^{00} 	:	 -0.001423395
+fu_xx^{10} 	:	 -0.008085701
+fu_x^{00} 	:	 -0.005037675
+fu_x^{01} 	:	 -0.005629581
+fu_x^{10} 	:	 -0.979382518
+fu_1^{11} 	:	 -0.001407877
+---- Sparsity = 6 / 52 
+
+
+############################
+Learns advection-reaction approximately...
+
+Features option: 1storder
+---- Errors ----
+Train Score 	= 0.998
+Test Score 	= 0.994
+Train RMSE 	= 1.715e-02
+Test RMSE 	= 2.392e-03
+---- Coefficients ----
+fu_^{10} 	:	 -1.847289958
+fu_U^{10} 	:	 0.018681862
+fu_U^{20} 	:	 -0.911911133
+fu_x^{00} 	:	 -0.396706265
+---- Sparsity = 4 / 90 
+
+
+#############################
+ 
+Features option: 1storder
+---- Errors ----
+Train Score 	= 0.865
+Test Score 	= 0.863
+Train RMSE 	= 4.099e-03
+Test RMSE 	= 2.655e-03
+---- Coefficients ----
+fu_^{00} 	:	 -0.326088788
+fu_x^{00} 	:	 -0.139482435
+fu_x^{01} 	:	 -0.323331822
+fu_xx^{01} 	:	 0.060114769
+fu_xxx^{00} 	:	 0.028448544
+---- Sparsity = 5 / 90 

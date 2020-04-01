@@ -275,3 +275,5 @@ class Visualize:
             raise Exception("dimension doesn't exist; choose x or t")
 
 
+#if __name__ == "__main__":
+

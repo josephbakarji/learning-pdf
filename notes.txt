@@ -2,11 +2,86 @@
 TO DO:
 
 
-    - function for picking out conditions
-    - function for learning from that set 
-    - examples: linear u0, gaussian k, same discretization (dU, dx, dt)
 
-    ---
+
+- Tests 
+    - try advectionreaction_varcoef again...
+    - Try it on advection-reaction equation
+        - Try to use fipy:
+            - https://ieeexplore.ieee.org/document/4814978
+            - https://www.ctcms.nist.gov/fipy/documentation/contents.html
+    - Monte Carlo advection equation 
+    - Learn CDF equation of advection 
+    - Test Burgers on different portions of simulation (pre-shock and post-shock)
+
+- Results
+    - Nonlinear reaction equation
+        - Error and coefficients as a function of regularization coefficients
+        - Learn conservative form (?)
+
+    - Burger's equation
+        - Error as a function of training time (without error) testing effect of shock in Burgers' equation
+        - Error as a function of number of Monte Carlo simulations
+
+    - Linear advection
+        - Error as a function of MC realizations
+        - Error as a function of polynomial order
+        - Error as a functin of regularization coefficients
+
+
+- Methods
+    - Include integral terms
+    - Learn Conservative form
+    
+
+
+-----------------------------------------------------------
+
+Paper:
+
+    - Generate new examples
+        - u0(x) has to have compact support!
+        - Replace example by something more complicated: g(u), get analytical result if possible?
+        - Try simple case with known solution.
+
+        - Apply it to reaction problem with known PDF equation (results)
+        - Apply it to conservative form of reaction equation
+
+        - Apply to marginal advection problem with unknown PDF equation
+        - Compare with and without variable coefficients
+
+        - Learn conservative form.
+        - Learn integro-differential equation.
+        - Use Monte Carlo?
+
+
+    - Check for conservative equation for PDF. (see Mtalba's paper)
+    - Constrain PDF equation in Problem definition more explicitely in conservative form.
+        - Test errors by actually solving resulting PDE
+
+    - Discussion
+        - Add discussion about why our method is better.
+        - Add variable coefficients results and paper
+
+    - Results:
+        - Generalize in time
+            - Test on gradually farther portions of time.
+            - Now time_general measures error as a function of training set size
+        - Coefficient as a funciton of lambda
+        - Sensitivity analysis
+        - Error as a function of number of terms
+        - Generalization tests: error as a function of training/test generality
+        - Predictive ability vs. parsimony (as done in lipson's paper)
+
+    - Unexpected uses of the method:
+        - reverse engineering a solver: find bugs and see what the solver is solving...
+        - 
+
+ -----------------------------------
+
+    - function for learning from that set 
+        - Learn sequentially or use whole matrix (second is memory intensive)
+
     
     - Get Results:
         - Test impact of range on variable coefficient
@@ -16,21 +91,33 @@ TO DO:
         - Plot histogram comparing results of various combinations of properties
 
     - Algorithm Improvements:
+        - Learn CDF because it's smoother?
+        - for now "case" in makeFeatures and PDElearn is the same that in PdfSolve, but in general it doesn't have to be (make it more generic)
         - Improve derivatives: Implement total variation regularized derivative
         - Include integral term in features
+        - For different ICs learning, with analytical solution, I don't have to save results through the whole solution
+        - Fix partialfit() incomplete! 
+        - fu_Uxt[U, x, t] makes mathematical sense but fu_txw[t, x, U] makes more numerical sense... which to use? be consistent!
+        - Weird issue: sometimes matrices don't match in Learning.py line 476. It fails a couple times and then it works!
+        - Use breaking time (shock) to stop simulation (in burgers)
+        - Do I need to save f_uk ????????????????????????
 
     - Vizualization:
         - print features: write function makeFeatureNames (includes ^{01} -> 1*x)
+            - tabulate printed values 
         - fix vizualization module
 
     - Test cases:
-        - Try simple reaction case: du/dt = ku
         - Test on 5-equation model
-
+    
+    - Make online documentations
 
 Some more improvements:
     - Code:
+        - delete metadata of files that were deleted
         - Optimize makefeatures function options (too redundant)
+        - Unify test cases files
+        - Try partial_fit()
 
     - Method:
         - Compute derivatives analytically for better estimate of accuaracy
@@ -72,22 +159,12 @@ Issues And Discussion:
         - The solution domain should contain the whole PDF to learn better: this could be computationally expensive 
         - A small error in the coefficient will cause a large one when integrated.
 
------------------------------------------------------------
-
-Paper:
-    - Results:
-        - Generalize in time
-            - Test on gradually farther portions of time.
-            - Now time_general measures error as a function of training set size
-        - Coefficient as a funciton of lambda
-        - Sensitivity analysis
-        - Error as a function of number of terms
-        - Generalization tests: error as a function of training/test generality
-        - Predictive ability vs. parsimony (as done in lipson's paper)
-
 -------------------------------------------------------------
 
 
 New Ideas:
     - Learn the dynamics (equation) of a kinetic defect f(x, t) in the case of shocks.
+        - What do I get if I directly try to learn the burgers solution: will the kinetic defect come up naturally?
+    - Can a neural network be used as a numerical differentiator? That's for automatic differentiation?
     - Learn integrator using neural network.
+    - 

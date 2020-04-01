@@ -1,4 +1,4 @@
-import numpy
+import numpy 
 from matplotlib import pyplot
 import burgers
 import weno_coefficients
@@ -125,6 +125,15 @@ class WENOSimulation(burgers.Simulation):
         self.C = C   # CFL number
         self.weno_order = weno_order
 
+    def init_cond_anal(self, type="gaussian", params=[1.0, 1.0, 30.0, .2]):
+        if type == "gaussian":
+            mean = params[0]
+            var = params[1]
+            scale = params[2]
+            shift = params[3]
+            self.grid.u = shift + scale*numpy.exp(-(self.grid.x - mean)**2/(2*var**2))
+
+
     def init_cond(self, type="tophat", u=None):
         if type == "smooth_sine":
             self.grid.u = numpy.sin(2 * numpy.pi * self.grid.x)
@@ -190,6 +199,37 @@ class WENOSimulation(burgers.Simulation):
 
             self.t += dt
 
+    def evolve_return(self, tmax, dt):
+        """ evolve the linear advection equation using RK4 """
+        self.t = 0.0
+        g = self.grid
+        
+        timesteps = int(tmax/dt)
+        timevec = numpy.linspace(0, tmax, timesteps)
+        u_tx = numpy.zeros((timesteps, g.nx))
+        u_tx[0, :] = g.u[g.ilo: g.ihi+1]
+
+        # main evolution loop
+        for i in range(1, len(timevec)):
+
+            # fill the boundary conditions
+            g.fill_BCs()
+
+            # RK4
+            # Store the data at the start of the step
+            u_start = g.u.copy()
+            k1 = dt * self.rk_substep()
+            g.u = u_start + k1 / 2
+            k2 = dt * self.rk_substep()
+            g.u = u_start + k2 / 2
+            k3 = dt * self.rk_substep()
+            g.u = u_start + k3
+            k4 = dt * self.rk_substep()
+            g.u = u_start + (k1 + 2 * (k2 + k3) + k4) / 6
+
+            u_tx[i, :] = g.u[g.ilo: g.ihi+1]
+
+        return u_tx
 
 
 if __name__ == "__main__":
