@@ -28,7 +28,7 @@ grid = PdfGrid(gridvars)
 
 # Learn 
 difflearn = PDElearn(fuk, grid, fu=fu, ICparams=ICparams, trainratio=0.8, debug=False, verbose=True)
-difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=1, use_sindy=True)
+difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=1, use_sindy=True, sindy_alpha=0.001)
 
 #difflearn.fit_sparse(feature_opt='1storder', variableCoef=False)
 #difflearn.fit_sparse(feature_opt='1storder', variableCoef=True, variableCoefBasis='simple_polynomial', variableCoefOrder=2)

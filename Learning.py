@@ -17,10 +17,11 @@ class PDElearn:
         self.trainratio = trainratio 
         self.debug = debug
         self.verbose = verbose
-        self.features = []
         self.labels = []
         self.featurenames = []
 
+
+#########################################
 
     def train(self, X, y, RegType='L1', RegCoef=0.00001, maxiter=1000, tolerance=0.0001):
 
@@ -34,28 +35,22 @@ class PDElearn:
             raise Exception("wrong option")
 
         lin.fit(X, y)
-
         return lin
+
+#########################################
 
     def train_sindy(self, X, y, RegCoef=0.0001, maxiter=1000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
 
         null_feature_idx = [] # indeces of zeros 
         rem_feature_idx = range(X.shape[1]) # indeces of nonzero terms
-
         for i in range(sindy_iter):
 
-            # Check if all feature coefficients ended up zero
-            if len(rem_feature_idx) == 0:
-                raise Exception("All coefficients are zero: couldn't learn anything...")
-
             lin = linear_model.Lasso(alpha=RegCoef, max_iter=maxiter, normalize=True, tol=tolerance)
-            print("prefit")
             lin.fit(X[:, rem_feature_idx], y)
-            print("postfit")
             flag_repeat = False
 
-            if self.verbose:
-                print("\n\nSindy iteration : %d"%(i))
+            #if self.verbose:
+            print("\n\nSindy iteration : %d"%(i))
 
             # Remove terms with coefficients below threshold sindy_alpha
             for j, coefficient in enumerate(lin.coef_): 
@@ -64,26 +59,34 @@ class PDElearn:
                     null_feature_idx.append(rem_feature_idx[j])
 
             if self.verbose: 
-                # Prints accuracy for training set (include test?)
                 self.print_report(lin, X, y, rem_feature_idx)
 
             # Update indeces of non-zero terms 
             rem_feature_idx = [i for i in rem_feature_idx if i not in set(null_feature_idx)]
 
+            # Check if all feature coefficients are zero
+            if len(rem_feature_idx) == 0:
+                print("All coefficients are zero: The trivial solution is optimal...")
+                return lin, rem_feature_idx
+
             if flag_repeat == False:
-               return lin, rem_feature_idx
+                return lin, rem_feature_idx
         
         if flag_repeat == True:
-            raise Exception("SINDy did not converge")
+            print("SINDy did not converge")
+            return lin, rem_feature_idx
 
-    
-    def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', use_sindy=True,\
-            RegCoef=0.000001, maxiter=5000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.0001):
 
-        self.featurelist, self.labels, self.featurenames = \
-                self.makeFeatures(option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
+#########################################
+    #def train_sindy_partialfit(self, Xlist, ylist, RegCoef=0.0001, maxiter=1000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
+#########################################
+
+    def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', \
+            RegCoef=0.000001, maxiter=5000, tolerance=0.00001, use_sindy=True, sindy_iter=10, sindy_alpha=0.0001):
+
+        F = Features(option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
+        self.featurelist, self.labels, self.featurenames = F.makeFeatures(self.grid, self.fu, self.ICparams)
         Xtrain, ytrain, Xtest, ytest = self.makeTTsets(self.featurelist, self.labels, shuffle=False)
-        print(Xtrain.shape, ytrain.shape)
 
         if use_sindy:
             lin1, rem_feature_idx = self.train_sindy(Xtrain, ytrain, RegCoef=RegCoef, maxiter=maxiter, tolerance=tolerance, sindy_iter=sindy_iter, sindy_alpha=sindy_alpha)
@@ -96,11 +99,11 @@ class PDElearn:
                 if abs(coef) != 0.0:
                     rem_feature_idx.append(idx)
 
+        trainRMSE = np.sqrt(mean_squared_error(ytrain, lin1.predict(Xtrain)))
+        testRMSE = np.sqrt(mean_squared_error(ytest, lin1.predict(Xtest)))
 
-        trainMSE = mean_squared_error(ytrain, lin1.predict(Xtrain))
-        testMSE = mean_squared_error(ytest, lin1.predict(Xtest))
-
-        if self.verbose: # Replace with print_report if possible
+        # Replace with print_report if possible
+        if self.verbose: 
             print("\n#############################\n ")
             print('Features option: ' + feature_opt )
             #pdb.set_trace()
@@ -108,8 +111,8 @@ class PDElearn:
             print("---- Errors ----")
             print("Train Score \t= %5.3f" %(lin1.score(Xtrain, ytrain)) )
             print("Test Score \t= %5.3f" %(lin1.score(Xtest, ytest))) 
-            print("Train MSE \t= %5.3e"%(trainMSE))
-            print("Test MSE \t= %5.3e"%(testMSE))
+            print("Train RMSE \t= %5.3e"%(trainRMSE))
+            print("Test RMSE \t= %5.3e"%(testRMSE))
             
             print("---- Coefficients ----")
             for i, feat_idx in enumerate(rem_feature_idx): 
@@ -117,11 +120,13 @@ class PDElearn:
             print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
 
 
+#########################################
     
     def fit_all(self, feature_opt='1storder', shuffleopt=False, variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial',\
             RegCoef=0.000001, maxiter=5000, tolerance=0.00001):
-        featurelist, labels, featurenames = \
-                self.makeFeatures(option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
+
+        F = Features(option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
+        featurelist, labels, featurenames = F.makeFeatures(self.grid, self.fu, self.ICparams)
         Xtrain, ytrain, Xtest, ytest = self.makeTTsets(featurelist, labels, shuffle=shuffleopt)
         self.featurelist, self.labels = featurelist, labels
 
@@ -145,16 +150,113 @@ class PDElearn:
             for i in range(len(lin1.coef_)): # Fix for options when not all are used
                 print("%s \t:\t %5.4f \t %5.4f \t %5.4f" %( featurenames[i], lin1.coef_[i], lin2.coef_[i], lin0.coef_[i]))
 
-    def makeFeatures(self, option='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', addNonlinear=False):
+#########################################
+#########################################
+
+    def debug_plot(self, x, y1, y2, name): 
+        fig, ax = plt.subplots(1, 2, sharey=True)
+        ax[0].plot(x, y1) 
+        ax[0].set_ylabel('f')
+        ax[0].set_title(name) 
+        
+        ax[1].plot(x, y2)
+        ax[1].set_ylabel('f')
+        ax[1].set_title(name+' smoothed')
+
+#########################################
+
+    def makeTTsets(self, featurelist, labels, shuffle=False):
+        X = self.make_X(featurelist)
+        y = self.make_y(labels)
+        
+        if shuffle:
+            rng_state = np.random.get_state()
+            np.random.shuffle(X)
+            np.random.set_state(rng_state)
+            np.random.shuffle(y)
+
+        # Split data into training and test sets
+        trainlength = int( self.trainratio * X.shape[0] )
+        Xtrain = X[:trainlength, :]
+        ytrain = y[:trainlength]
+        Xtest = X[trainlength:, :]
+        ytest = y[trainlength:]
+
+        return Xtrain, ytrain, Xtest, ytest
+
+
+    def make_X(self, featurelist):
+        nu = featurelist[0].shape[0]
+        nx = featurelist[0].shape[1]
+        nt = featurelist[0].shape[2]
+        nf = len(featurelist)
+        
+        X = np.zeros((nu*nx*nt, nf)) 
+        for f_idx, f in enumerate(featurelist):
+            X[:, f_idx] = f.reshape(nu*nx*nt)
+        return X
+
+    def make_y(self, f):
+        return f.reshape((f.shape[0] * f.shape[1] * f.shape[2]))
+
+###################################
+
+    def print_report(self, lin, X, y, rem_feature_idx):
+        print("\n##########\n")
+        trainMSE = mean_squared_error(y, lin.predict(X[:, rem_feature_idx]))
+        print("---- Errors ----")
+        print("Train Score \t= %5.3f" %(lin.score(X[:, rem_feature_idx], y)) )
+        print("Train MSE \t= %5.3e"%(trainMSE))
+
+        print("---- Coefficients ----")
+        for i, feat_idx in enumerate(rem_feature_idx): 
+                print("%s \t:\t %7.9f" %( self.featurenames[feat_idx], lin.coef_[i]))
+        print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
+
+
+    def print_full_report(self, lin, Xtrain, ytrain, Xtest, ytest, rem_feature_idx, featurenames):
+        # TODO: use tabulate() package/function
+
+        print("\n##########\n")
+        trainRMSE = np.sqrt(mean_squared_error(ytrain, lin.predict(Xtrain[:, rem_feature_idx])))
+        testRMSE = np.sqrt(mean_squared_error(ytest, lin.predict(Xtest[:, rem_feature_idx])))
+        print("---- Errors ----")
+        print("Train Score \t= %5.3f" %(lin.score(Xtrain[:, rem_feature_idx], ytrain)) )
+        print("Test Score \t= %5.3f" %(lin.score(Xtest[:, rem_feature_idx], ytest)) )
+        print("Train RMSE \t= %5.3e"%(trainRMSE))
+        print("Test RMSE \t= %5.3e"%(trainRMSE))
+
+
+        print("---- Coefficients ----")
+        for i, feat_idx in enumerate(rem_feature_idx): 
+                print("%s \t:\t %7.9f" %(featurenames[feat_idx], lin.coef_[i]))
+        print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(featurenames)))
+
+
+###########################################3
+###########################################3
+###########################################3
+###########################################3
+###########################################3
+
+
+
+
+class Features:
+    def __init__(self, option='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', addNonlinear=False):
+        self.option = option 
+        self.variableCoef = variableCoef
+        self.variableCoefOrder = variableCoefOrder
+        self.variableCoefBasis = variableCoefBasis
+        self.addNonlinear = addNonlinear
+
+    def makeFeatures(self, grid, fu, ICparams):
         ### options =
         # '2ndorder': second order in time (also adds f_xt)
         # '1storder': first order in time
         # '1storder_close': learn closure terms
 
         # Variable coefficients assumed functions of U and x
-
-        grid = self.grid
-        fu = self.fu
 
         nt = len(grid.tt)
         nx = len(grid.xx)
@@ -163,11 +265,11 @@ class PDElearn:
         dt = grid.tt[1] - grid.tt[0]
         du = grid.uu[1] - grid.uu[0]
        
-        if option == '2ndorder':
+        if self.option == '2ndorder':
             ddict = {'', 't', 'tt', 'xt', 'x', 'xx', 'xxx', 'xxxx', 'U', 'UU', 'UUU', 'xU', 'xUU', 'xxU', 'xxUU'}
-        elif option == '1storder' or option == '1storder_close':
+        elif self.option == '1storder' or option == '1storder_close':
             ddict = {'', 't', 'x', 'xx', 'xxx', 'xxxx', 'U', 'UU', 'UUU', 'xU', 'xUU', 'xxU', 'xxUU'}
-        elif option == 'conservative':
+        elif self.option == 'conservative':
             ddict = {'', 't', 'U', 'Ux', 'Uxx', 'Uxxx', 'UU', 'UUx', 'UUxx', 'UUU', 'UUUx'}
         else:
             raise Exception('option not valid')
@@ -221,11 +323,11 @@ class PDElearn:
         ddict.add('1')
 
         # Add variable coefficients
-        deg = variableCoefOrder+1 
+        deg = self.variableCoefOrder+1 
 
-        if variableCoef:
+        if self.variableCoef:
             
-            print("Variable coefficient type: " + variableCoefBasis)
+            print("Variable coefficient type: " + self.variableCoefBasis)
             uu_grid, xx_grid = np.meshgrid(uu_adj, xx_adj, indexing='ij')
             fudict_var = dict.fromkeys([(term, j, k) for term in ddict for j in range(deg) for k in range(deg)])
 
@@ -237,7 +339,7 @@ class PDElearn:
                         for k, u in enumerate(uu_adj):
                             for l, x in enumerate(xx_adj):
                                 
-                                if variableCoefBasis == 'chebyshev':
+                                if self.variableCoefBasis == 'chebyshev':
                                     # too inefficient (find a way to get individual terms)
                                     ivec = np.zeros(i+1)
                                     ivec[-1] = 1
@@ -245,11 +347,11 @@ class PDElearn:
                                     jvec[-1] = 1
                                     fux[k, l] = chebval(u, ivec) * chebval(x, jvec)
 
-                                elif variableCoefBasis == 'simple_polynomial':
+                                elif self.variableCoefBasis == 'simple_polynomial':
                                     fux[k, l] = u**i * x**j
 
                                 else:
-                                    raise Exception("variableCoefBasis %s doesn't exist".format(variableCoefBasis))
+                                    raise Exception("variableCoefBasis %s doesn't exist".format(self.variableCoefBasis))
 
                         fudict_var[(term, i, j)] = fux # nu*nx
 
@@ -260,22 +362,22 @@ class PDElearn:
 
 
             # Too redundant - fix
-            if option == '2ndorder':
+            if self.option == '2ndorder':
                 labels = fudict_var[('tt', 0, 0)]
                 for key, val in fudict_var.items():
                     if key[0] != 'tt' and key[0] != 't':
                         featurenames.append('fu_'+key[0]+'^{'+str(key[1])+str(key[2])+'}')
                         featurelist.append(val)
 
-            elif option == '1storder' or option == 'conservative':
+            elif self.option == '1storder' or option == 'conservative':
                 labels = fudict_var[('t', 0, 0)]
                 for key, val in fudict_var.items():
                     if key[0] != 't':
                         featurenames.append('fu_'+key[0]+'^{'+str(key[1])+str(key[2])+'}')
                         featurelist.append(val)
 
-            elif option == '1storder_close':
-                S = PdfSolver(grid, ICparams=self.ICparams) 
+            elif self.option == '1storder_close':
+                S = PdfSolver(grid, ICparams=ICparams) 
                 print(S.int_kmean)
                 labels = fudict_var[('t', 0, 0)] + S.int_kmean() * fudict_var[('x', 0, 0)]
                 for key, val in fudict_var.items():
@@ -287,22 +389,22 @@ class PDElearn:
 
         else: # Not variable coefficient
             
-            if option == '2ndorder':
+            if self.option == '2ndorder':
                 labels = fudict['tt']
                 for term, val in fudict.items():
                     if term != 'tt' and term != 't':
                         featurenames.append('fu_'+term)
                         featurelist.append(val)
 
-            elif option == '1storder':
+            elif self.option == '1storder':
                 labels = fudict['t']
                 for term, val in fudict.items():
                     if term != 't':
                         featurenames.append('fu_'+term)
                         featurelist.append(val)
 
-            elif option == '1storder_close':
-                S = PdfSolver(grid, ICparams=self.ICparams) 
+            elif self.option == '1storder_close':
+                S = PdfSolver(grid, ICparams=ICparams) 
                 labels = fudict['t'] + S.int_kmean() * fudict['x']
                 for term, val in fudict.items():
                     if term != 't':
@@ -314,66 +416,6 @@ class PDElearn:
 
 
         return featurelist, labels, featurenames
-
-
-    def debug_plot(self, x, y1, y2, name): 
-        fig, ax = plt.subplots(1, 2, sharey=True)
-        ax[0].plot(x, y1) 
-        ax[0].set_ylabel('f')
-        ax[0].set_title(name) 
-        
-        ax[1].plot(x, y2)
-        ax[1].set_ylabel('f')
-        ax[1].set_title(name+' smoothed')
-
-
-    def makeTTsets(self, featurelist, labels, shuffle=False):
-        X = self.make_X(featurelist)
-        y = self.make_y(labels)
-        
-        if shuffle:
-            rng_state = np.random.get_state()
-            np.random.shuffle(X)
-            np.random.set_state(rng_state)
-            np.random.shuffle(y)
-
-        # Split data into training and test sets
-        trainlength = int( self.trainratio * X.shape[0] )
-        Xtrain = X[:trainlength, :]
-        ytrain = y[:trainlength]
-        Xtest = X[trainlength:, :]
-        ytest = y[trainlength:]
-
-        return Xtrain, ytrain, Xtest, ytest
-
-
-    def make_X(self, featurelist):
-        nu = featurelist[0].shape[0]
-        nx = featurelist[0].shape[1]
-        nt = featurelist[0].shape[2]
-        nf = len(featurelist)
-        
-        X = np.zeros((nu*nx*nt, nf)) 
-        for f_idx, f in enumerate(featurelist):
-            X[:, f_idx] = f.reshape(nu*nx*nt)
-        return X
-
-    def make_y(self, f):
-        return f.reshape((f.shape[0] * f.shape[1] * f.shape[2]))
-
-
-    def print_report(self, lin, X, y, rem_feature_idx):
-        print("\n##########\n")
-        trainMSE = mean_squared_error(y, lin.predict(X[:, rem_feature_idx]))
-        print("---- Errors ----")
-        print("Train Score \t= %5.3f" %(lin.score(X[:, rem_feature_idx], y)) )
-        print("Train MSE \t= %5.3e"%(trainMSE))
-
-        print("---- Coefficients ----")
-        for i, feat_idx in enumerate(rem_feature_idx): 
-                print("%s \t:\t %7.9f" %( self.featurenames[feat_idx], lin.coef_[i]))
-        print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
-
 
 #if __name__ == "__main__":
 

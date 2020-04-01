@@ -100,10 +100,11 @@ class DataIO:
        
 ##########################
 
-#{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
-#{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
 
     def printMetadata(self, filter_filenames=None):
+        #{'u0': 'exponential', 'u0param': [1.0, 0.0], 'fu0': 'gaussian', 'fu0param': 1.1, 'fk': 'uniform', 'fkparam': [0.0, 1.0]}
+        #{'u': (-5, 3, 0.05), 'k': (-0.5, 1.5, 0.05), 't': (0, 5, 0.05), 'x': (-2.5, 2.5, 0.05)}
+
         # Print metadata in table form in the terminal
 
         with open(self.casedir+'metadata.txt') as jsonfile:
@@ -200,4 +201,4 @@ if __name__ == "__main__":
     D.printMetadata()
     req_properties = {'u0': 'line'}
     req_filenames = D.filterSolutions(req_properties)
-    D.printMetadata(filter_filenames=req_filenames)
+    #D.printMetadata(filter_filenames=req_filenames)
