@@ -1,6 +1,61 @@
 
 TO DO:
 
+    - Generate new examples
+        - Try simple case with known solution.
+        - u0(x) has to have compact support!
+        - Replace example by something more complicated: g(u), get analytical result if possible?
+    - Test why it's not working for multiple IC
+    - Learn Integro-differentil equation
+    - Use 
+
+Presentation:
+    - Progression:  
+        - PDF method definition (1 slide)
+        - simple (reaction) example with solution (1 slide)
+        - simple (advection) example with solution (1 slide)? 
+        - apply it to compaction problem and show closures (3 slides)
+
+        - Sparse identification of PDF equations (General) (2 slides)
+
+        Results:
+            - Apply it to reaction problem with known PDF equation (results)
+            - Apply it to conservative form of reaction equation
+
+            - Apply to marginal advection problem with unknown PDF equation
+            - Compare with and without variable coefficients
+
+            - Learn localized Integral term
+            - Use Monte Carlo?
+
+-----------------------------------------------------------
+
+Paper:
+
+    - Generate new examples
+        - u0(x) has to have compact support!
+        - Replace example by something more complicated: g(u), get analytical result if possible?
+        - Try simple case with known solution.
+
+    - Check for conservative equation for PDF. (see Mtalba's paper)
+    - Constrain PDF equation in Problem definition more explicitely in conservative form.
+        - Test errors by actually solving resulting PDE
+
+    - Discussion
+        - Add discussion about why our method is better.
+        - Add variable coefficients results and paper
+
+    - Results:
+        - Generalize in time
+            - Test on gradually farther portions of time.
+            - Now time_general measures error as a function of training set size
+        - Coefficient as a funciton of lambda
+        - Sensitivity analysis
+        - Error as a function of number of terms
+        - Generalization tests: error as a function of training/test generality
+        - Predictive ability vs. parsimony (as done in lipson's paper)
+        
+-----------------------------------
 
 
 

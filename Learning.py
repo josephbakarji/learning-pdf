@@ -17,7 +17,6 @@ class PDElearn:
         self.trainratio = trainratio 
         self.debug = debug
         self.verbose = verbose
-        self.features = []
         self.labels = []
         self.featurenames = []
         self.scase = scase
@@ -158,7 +157,6 @@ class PDElearn:
 
 #########################################
 #########################################
-#########################################
 
     def debug_plot(self, x, y1, y2, name): 
         fig, ax = plt.subplots(1, 2, sharey=True)
@@ -238,8 +236,6 @@ class PDElearn:
             for i, feat_idx in enumerate(rem_feature_idx): 
                     print("%s \t:\t %7.9f" %(featurenames[feat_idx], lin.coef_[i]))
             print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(featurenames)))
-
-
 ###########################################3
 ###########################################3
 ###########################################3
@@ -248,6 +244,7 @@ class PDElearn:
 
 class Features:
     def __init__(self, scase='advection_marginal', option='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', addNonlinear=False):
+
         self.option = option 
         self.variableCoef = variableCoef
         self.variableCoefOrder = variableCoefOrder
@@ -689,5 +686,4 @@ class Features:
 
         return featurelist, labels, featurenames
 
-#if __name__ == "__main__":
 
