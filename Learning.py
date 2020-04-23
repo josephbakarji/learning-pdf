@@ -5,6 +5,7 @@ from pdfsolver import PdfSolver, PdfGrid
 from scipy.signal import savgol_filter
 from numpy.polynomial.chebyshev import chebval, Chebyshev
 from sklearn.metrics import mean_squared_error
+import time
 import pdb
 from __init__ import *
 
@@ -83,12 +84,14 @@ class PDElearn:
 #########################################
 
     def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', \
-            RegCoef=0.000001, maxiter=5000, tolerance=0.00001, use_sindy=True, sindy_iter=10, sindy_alpha=0.0001, shuffle=False):
+            RegCoef=0.000001, maxiter=5000, tolerance=0.00001, use_sindy=True, sindy_iter=10, sindy_alpha=0.0001, shuffle=False, nzthresh=1e-200):
+
 
         F = Features(scase=self.scase, option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
         self.featurelist, self.labels, self.featurenames = F.makeFeatures(self.grid, self.fu, self.ICparams)
-        Xtrain, ytrain, Xtest, ytest = self.makeTTsets(self.featurelist, self.labels, shuffle=shuffle)
+        Xtrain, ytrain, Xtest, ytest = self.makeTTsets(self.featurelist, self.labels, shuffle=shuffle, threshold=nzthresh)
 
+        t0 = time.time()
         if use_sindy:
             lin1, rem_feature_idx = self.train_sindy(Xtrain, ytrain, RegCoef=RegCoef, maxiter=maxiter, tolerance=tolerance, sindy_iter=sindy_iter, sindy_alpha=sindy_alpha)
             Xtrain = Xtrain[:, rem_feature_idx]
@@ -99,6 +102,7 @@ class PDElearn:
             for idx, coef in enumerate(lin1.coef_):
                 if abs(coef) != 0.0:
                     rem_feature_idx.append(idx)
+        print('Sindy learning time', time.time() - t0)
 
         trainRMSE = np.sqrt(mean_squared_error(ytrain, lin1.predict(Xtrain)))
         testRMSE = np.sqrt(mean_squared_error(ytest, lin1.predict(Xtest)))
@@ -170,9 +174,14 @@ class PDElearn:
 
 #########################################
 
-    def makeTTsets(self, featurelist, labels, shuffle=False):
-        X = self.make_X(featurelist)
-        y = self.make_y(labels)
+    def makeTTsets(self, featurelist, labels, shuffle=False, threshold=1e-90):
+
+        # Get rid of useless nodes that don't change in time
+        nzidx = np.where(np.sum(labels, axis=2)>threshold)
+        print('fu_red num elem: ', np.prod(featurelist[0][nzidx].shape))
+
+        X = self.make_X(featurelist, nzidx)
+        y = self.make_y(labels, nzidx)
         
         if shuffle:
             rng_state = np.random.get_state()
@@ -190,18 +199,19 @@ class PDElearn:
         return Xtrain, ytrain, Xtest, ytest
 
 
-    def make_X(self, featurelist):
+    def make_X(self, featurelist, nzidx):
+         
         f0 = featurelist[0]
         nf = len(featurelist)
-        numelem = np.prod(f0.shape)
+        numelem = np.prod(f0[nzidx].shape)
         
         X = np.zeros((numelem, nf)) 
         for f_idx, f in enumerate(featurelist):
-            X[:, f_idx] = f.reshape(numelem)
+            X[:, f_idx] = f[nzidx].reshape(numelem)
         return X
 
-    def make_y(self, f):
-        return f.reshape((np.prod(f.shape)))
+    def make_y(self, f, nzidx):
+        return f[nzidx].reshape((np.prod(f[nzidx].shape)))
 
 ###################################
 
@@ -300,10 +310,7 @@ class Features:
         # Adjust dimensions to match
         mu = maxder['U']
         mt = maxder['t']
-
-        
         uu_adj = grid.uu[mu//2 : nu-mu//2-mu%2]
-
         for term in fudict:
             uc = mu - dcount[term]['U']
             tc = mt - dcount[term]['t']
@@ -425,6 +432,8 @@ class Features:
             nt = fudict[term].shape[2]
             fudict[term] = fudict[term][uc//2:nu-uc//2-uc%2, xc//2:nx-xc//2-xc%2, tc//2:nt-tc//2-tc%2] 
 
+
+
         xx_adj = grid.xx[mx//2 : len(grid.xx)-mx//2-mx%2]
         uu_adj = grid.uu[mu//2 : len(grid.uu)-mu//2-mu%2]
         
@@ -474,6 +483,7 @@ class Features:
                 # feat = (term, i, j)
                 fux_t = np.tile(coefarr.transpose(), (nt-mt, 1, 1)).transpose()
                 fudict_var[feat] = np.multiply( fudict[feat[0]], fux_t )
+
 
 
             # Too redundant - fix

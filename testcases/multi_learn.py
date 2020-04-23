@@ -6,11 +6,7 @@ sys.path.insert(0, parent_dir)
 import numpy as np
 import matplotlib.pyplot as plt
 from pdfsolver import PdfSolver, PdfGrid
-<<<<<<< HEAD
 from Learning import PDElearn, Features
-=======
-from Learning import PDElearn
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
 from datamanage import DataIO
 from visualization import Visualize
 from scipy.signal import savgol_filter
@@ -21,11 +17,7 @@ from __init__ import *
 
 
 class MultiLearn:
-<<<<<<< HEAD
     def __init__(self, filter_options = {'dx':0.05}, case = 'advection_marginal', feature_opt = '1storder', variableCoef = False, variableCoefOrder = 2, variableCoefBasis = 'simple_polynomial', RegCoef = 0.000001, maxiter = 5000, tolerance = 0.00001, use_sindy = True, sindy_iter = 10, sindy_alpha = 0.001, trainratio = 0.8, numexamples=10):
-=======
-    def __init__(self, filter_options = {'dx':0.05}, case = 'advection_marginal', feature_opt = '1storder', variableCoef = False, variableCoefOrder = 2, variableCoefBasis = 'simple_polynomial', RegCoef = 0.000001, maxiter = 5000, tolerance = 0.00001, use_sindy = True, sindy_iter = 10, sindy_alpha = 0.001, trainratio = 0.8):
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
         # Use inheritence from PDFlearn instead of repeating input variables
 
         self.case               = case               
@@ -40,7 +32,6 @@ class MultiLearn:
         self.sindy_iter         = sindy_iter         
         self.sindy_alpha        = sindy_alpha        
         self.trainratio         = trainratio         
-<<<<<<< HEAD
         self.numexamples        = numexamples
         self.datamanager        = DataIO(case) 
         self.loadname_list      = self.datamanager.filterSolutions(filter_options)
@@ -67,12 +58,6 @@ class MultiLearn:
         return difflearn, featurenames, Xtrain, ytrain, Xtest, ytest
 
     def multiIC(self):
-=======
-        self.datamanager = DataIO(case) 
-        self.loadname_list = self.datamanager.filterSolutions(filter_options)
-
-    def timeGeneralization(self):
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
         fuk_list = []
         fu_list = []
         ICparams_list = []
@@ -80,7 +65,6 @@ class MultiLearn:
 
         # Load simulation results
         for i in range(len(self.loadname_list)):
-<<<<<<< HEAD
 
             if i >= self.numexamples:
                 break
@@ -91,12 +75,6 @@ class MultiLearn:
             F = Features(scase=self.case, option=self.feature_opt, variableCoef=self.variableCoef, variableCoefOrder=self.variableCoefOrder, variableCoefBasis=self.variableCoefBasis)
             featurelist, labels, featurenames = F.makeFeatures(PdfGrid(gridvars), fu, ICparams)
 
-=======
-            fuk, fu, gridvars, ICparams = self.datamanager.loadSolution(self.loadname_list[i]+'.npy')
-            difflearn = PDElearn(fuk, PdfGrid(gridvars), fu=fu, ICparams=ICparams, trainratio=self.trainratio, debug=False, verbose=False)
-            featurelist, labels, featurenames = difflearn.makeFeatures(option=self.feature_opt, \
-                    variableCoef=self.variableCoef, variableCoefOrder=self.variableCoefOrder, variableCoefBasis=self.variableCoefBasis)
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
             Xtrain, ytrain, Xtest, ytest = difflearn.makeTTsets(featurelist, labels, shuffle=False)
             #pdb.set_trace()
             
@@ -113,7 +91,6 @@ class MultiLearn:
 
         
         # Fit data
-<<<<<<< HEAD
         lin, rem_feature_idx = difflearn.train_sindy(Xall_train, yall_train, \
                 RegCoef=self.RegCoef, maxiter=self.maxiter, tolerance=self.tolerance, sindy_iter=self.sindy_iter, sindy_alpha=self.sindy_alpha)
         difflearn.print_full_report(lin, Xall_train, yall_train, Xall_test, yall_test, rem_feature_idx, featurenames)
@@ -122,7 +99,7 @@ class MultiLearn:
 
     def testHyperparameter(self, lam, loadnamenpy=None):
 
-        if case == 'burgersMC':
+        if loadnamenpy is not None:
             difflearn, featurenames, Xall_train, yall_train, Xall_test, yall_test = self.multi_burgers(loadnamenpy)
         else:
             difflearn, featurenames, Xall_train, yall_train, Xall_test, yall_test = self.multiIC()
@@ -225,17 +202,9 @@ class MultiLearn:
 
                     self.testHyperparameter(lm)
 
-=======
-        #pdb.set_trace()
-        lin, rem_feature_idx = difflearn.train_sindy(Xall_train, yall_train, \
-                RegCoef=self.RegCoef, maxiter=self.maxiter, tolerance=self.tolerance, sindy_iter=self.sindy_iter, sindy_alpha=self.sindy_alpha)
-        difflearn.print_full_report(lin, Xall_train, yall_train, Xall_test, yall_test, rem_feature_idx, featurenames)
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
-
     
 if __name__== "__main__":
 
-<<<<<<< HEAD
     #S = MultiLearn()
     #S.compareMethods()
 
@@ -277,26 +246,5 @@ if __name__== "__main__":
     lmmax = 0.000001
     lm = np.linspace(lmmin, lmmax, lmnum)
     ml.testHyperparameter(lm)
-=======
-    case            = 'advection_marginal'
-    feature_opt     = '1storder'
-    variableCoef    = False
-    variableCoefOrder = 2
-    variableCoefBasis = 'simple_polynomial'
-    RegCoef         = 0.000001
-    tolerance       = 0.00001
-    use_sindy       = True
-    sindy_iter      = 10
-    sindy_alpha     = 0.001
-    trainratio      = 0.8
-
-    opt = {'dx': 0.05, 'u0': 'line', 'fk':'uniform', 'fkparam': [0.0, 1.0] } 
-    opt = {'u0': 'line', 'u0param': [1.0, 0.5], 'fu0': 'gaussian', 'fu0param': 0.3, 'fk': 'uniform', 'fkparam': [0.0, 1.0], 'dx': 0.05}
-    ml = MultiLearn( filter_options=opt, case=case, feature_opt = feature_opt, variableCoef=variableCoef, variableCoefOrder = variableCoefOrder, variableCoefBasis = variableCoefBasis, RegCoef = RegCoef, tolerance = tolerance, use_sindy = use_sindy, sindy_iter = sindy_iter, sindy_alpha = sindy_alpha, trainratio = trainratio)
-
-    # Generalizing in time?
-    ml.timeGeneralization()
-
->>>>>>> 078ef18895ee96039401e97f8ad194c673dfe82b
 
 

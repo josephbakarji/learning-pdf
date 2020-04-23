@@ -1,6 +1,9 @@
 
 TO DO:
 
+- Great improvements:
+    - choose data points with nonzero fu_t[:]
+    
     - Generate new examples
         - Try simple case with known solution.
         - u0(x) has to have compact support!
@@ -44,6 +47,10 @@ Paper:
     - Discussion
         - Add discussion about why our method is better.
         - Add variable coefficients results and paper
+        - The idea is to learn the most with the least MC computations
+            - a denser distribution provides better learning ?
+            - number of MC realizations with convergence ...
+            - Does a Gaussian Kernel always work? Are other kernels better?
 
     - Results:
         - Generalize in time
@@ -156,6 +163,7 @@ Paper:
         - Weird issue: sometimes matrices don't match in Learning.py line 476. It fails a couple times and then it works!
         - Use breaking time (shock) to stop simulation (in burgers)
         - Do I need to save f_uk ????????????????????????
+        - filter out grid points where fu_t over all t is close to zero (solution doesn't change much there...
 
     - Vizualization:
         - print features: write function makeFeatureNames (includes ^{01} -> 1*x)
