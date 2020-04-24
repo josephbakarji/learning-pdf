@@ -40,8 +40,14 @@ def advect_react():
 
     mu = 20
     mu_var = 2.5
+
+    ## sig + 0.6 (removed from IC)
+
     sig = 1
     sig_var = 0.5 
+
+    ## amp + .1 (removed from IC)
+
     amp = .3 
     amp_var = .2
     shift = 0.0
@@ -80,5 +86,34 @@ def burgers():
     MCprocess.buildKDE(nu, plot=True)
     #MCprocess.buildKDE_CDF(nu, plot=False)
 
+def burgersfipy():
+    case='burgers'
+    x_range = [-2.0, 3.0]
+    nx = 200 
+    nu = 150 
+    C = .3
+    tmax = 0.6 
+    num_realizations = 801
+    debug = False
+    savefilename = 'burgers0fipy' + str(num_realizations) + '.npy'
+
+    mean_mean = 0.5
+    mean_var = 0.3
+    var_mean = 0.3
+    var_var = 0.2
+    scale_mean = 0.8
+    scale_var = .2 
+    shift_mean = .6 
+    shift_var = .2 
+    params = [[mean_mean, mean_var], [var_mean, var_var], [scale_mean, scale_var], [shift_mean, shift_var]]
+
+    MC = MonteCarlo(case=case, num_realizations=num_realizations, x_range=x_range, tmax=tmax, debug=debug, savefilename=savefilename, nx=nx, C=C)
+    samples = MC.sampleInitialCondition("gaussians", params=params)
+    MC.multiSolve(samples, params)
+
+    MCprocess = MCprocessing(savefilename)
+    #MCprocess.buildKDE(nu, plot=True)
+    MCprocess.buildKDE(nu, distribution='CDF', plot=True)
+
 if __name__ == "__main__":
-    advect_react()
+    burgersfipy()

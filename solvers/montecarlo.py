@@ -47,6 +47,11 @@ class MonteCarlo:
                 x, u_txw[:, :, i] = self.solveBurgers(samples[i, :])
                 bar.update(i+1)
 
+        elif self.case=='burgersfipy':
+            for i in range(samples.shape[0]):
+                x, u_txw[:, :, i] = self.solveBurgersFipy(samples[i, :])
+                bar.update(i+1)
+
         elif self.case=='advection_reaction':
             for i in range(samples.shape[0]):
                 x, u_txw[:, :, i] = self.solveAdvectionReaction(samples[i, :], coeffs=coeffs)
@@ -58,6 +63,69 @@ class MonteCarlo:
 
         np.save(MCDIR + self.savefilename, u_txw)
         np.save(MCDIR + self.savefilename.split('.')[0] + '_grid.npy', gridinfo)
+
+    def solveBurgers(self, params):
+        ng = self.order+1
+        gu = burgers.Grid1d(self.nx, ng, xmin=self.xmin, xmax=self.xmax)
+        su = WENOSimulation(gu, C=self.C, weno_order=self.order)
+        #timevector = np.linspace(0, tmax, self.timesteps)
+        x = gu.x[gu.ilo:gu.ihi+1]
+        su.init_cond_anal(self.initial_function, params)
+        u_tx = su.evolve_return(self.tmax, self.dt) 
+
+        if self.debug == True:
+            self.plotu2(x, u_tx)
+        
+        return x, u_tx 
+
+    def solveBurgersFipy(self, params):
+        L = self.xmax - self.xmin
+        dx = L/self.nx
+        Nt = round(self.tmax/self.dt)
+
+        mesh = Grid1D(dx=dx, nx=self.nx) - self.xmin # normalized coordinates.
+        xc = mesh.cellCenters[0]
+        xf = mesh.faceCenters[0]
+
+        u = CellVariable(name="y0", mesh=mesh, value=0.0, hasOld=True)
+
+        def gaussian_function(xc, params):
+            mean = params[0]
+            var = params[1]
+            scale = params[2]
+            shift = params[3]
+            return shift + scale*np.exp(-(xc - mean)**2/(2*var**2))
+             
+        u.setValue(gaussian_function(xc, params))
+
+        shift = params[3]
+        solver = LinearLUSolver(tolerance=1e-10)
+        
+        u_tx = np.zeros((Nt, self.nx))
+        u_tx[0, :] = u
+
+        #plt.ion()
+        #fig = plt.figure()
+        for t in range(1, Nt):
+            u.updateOld()
+            u.constrain(shift, mesh.facesLeft)
+            u.constrain(shift, mesh.facesRight)
+            eqn0 = (TransientTerm(var=u) == ExponentialConvectionTerm(coeff=convCoeff, var=0.5*u**2)  )
+            
+            res0prev=1.0
+            sweeptol = 1e-18
+            for sweep in range(7):
+                res0 = eqn0.sweep(u, dt=self.dt, solver=solver)
+                if abs(res0 - res0prev)<sweeptol:
+                    break
+                res0prev = res0
+            if res0 > 1.0:
+                print('didnt converge residual:', res0)
+
+            u_tx[t, :] = u.value 
+
+
+        return mesh.x.value, u_tx 
 
 
     def solveBurgers(self, params):
@@ -104,12 +172,9 @@ class MonteCarlo:
         u_tx = np.zeros((Nt, self.nx))
         u_tx[0, :] = u
 
-
-        #plt.ion()
-        #fig = plt.figure()
         for t in range(1, Nt):
             u.updateOld()
-            SourceTerm0 = CellVariable(name="s0", mesh=mesh, value=(u-shift)**2, hasOld=True) # 
+            SourceTerm0 = CellVariable(name="s0", mesh=mesh, value=u, hasOld=True) # 
             u.constrain(shift, mesh.facesLeft)
             u.constrain(shift, mesh.facesRight)
             eqn0 = (TransientTerm(var=u) == ExponentialConvectionTerm(coeff=convCoeff, var=u)  + SourceTerm0)
@@ -121,15 +186,11 @@ class MonteCarlo:
                 if abs(res0 - res0prev)<sweeptol:
                     break
                 res0prev = res0
-                #print(res0)
-                #if res0 > 1.0:
+            if res0 > 1.0:
+                print(res0)
 
             u_tx[t, :] = u.value   
 
-        #print(res0)
-        #plt.plot(mesh.x.value, u.value)
-        #plt.draw()
-        #plt.pause(0.05)
 
 
         return mesh.x.value, u_tx 
@@ -177,8 +238,8 @@ class MonteCarlo:
             shift_var = params[3][1] 
 
             mean_samples = np.random.normal(mean_mean, mean_var, size=self.num_realizations)
-            var_samples = 0.6 + abs(np.random.normal(var_mean, var_var, size=self.num_realizations))
-            scale_samples = .1 + abs(np.random.normal(scale_mean, scale_var, size=self.num_realizations))
+            var_samples = abs(np.random.normal(var_mean, var_var, size=self.num_realizations))
+            scale_samples =  abs(np.random.normal(scale_mean, scale_var, size=self.num_realizations))
             shift_samples = abs(np.random.normal(shift_mean, shift_var, size=self.num_realizations))
 
             samples = np.stack((mean_samples, var_samples, scale_samples, shift_samples), axis=1)
@@ -299,7 +360,7 @@ class MCprocessing:
         self.plot_fu3D(xx, tt, ubins[:-1], fu_txhist)
 
 
-    def buildKDE(self, num_grids, partial_data=False, MCcount=10, save=True, plot=True, u_margin=0.0, distribution='PDF'):
+    def buildKDE(self, num_grids, MCcount=None, bandwidth='scott', save=True, plot=True, u_margin=0.0, distribution='PDF'):
         gridinfo = np.load(self.filedir.split('.')[0] + '_grid.npy')
         u_txw = np.load(self.filedir)
         xx = gridinfo.item().get('x')
@@ -307,23 +368,72 @@ class MCprocessing:
         params = gridinfo.item().get('params')
 
         uu = np.linspace(np.min(u_txw) + u_margin, np.max(u_txw), num_grids)
-        fu_txhist = np.zeros((u_txw.shape[0], u_txw.shape[1], num_grids))
+        fu_txU = np.zeros((u_txw.shape[0], u_txw.shape[1], num_grids))
 
-        if not partial_data:
+        if MCcount is None:
             MCcount = u_txw.shape[2]
-
+        
+        u_txw = u_txw[:, :, :MCcount]
         for i in range(u_txw.shape[0]):
             for j in range(u_txw.shape[1]):
-                kernel = gaussian_kde(u_txw[i, j, :MCcount])
+                kernel = gaussian_kde(u_txw[i, j, :], bw_method=bandwidth)
+
                 if distribution == 'PDF':
-                    fu_txhist[i, j, :] = kernel(uu)
+                    fu_txU[i, j, :] = kernel(uu)   
+
                 elif distribution == 'CDF':
                     for k in range(num_grids):
-                        fu_txhist[i, j, k] = kernel.integrate_box_1d(uu[0], uu[k])
+                        fu_txU[i, j, k] = kernel.integrate_box_1d(uu[0], uu[k])
 
         # TODO: PUT IN SEPARATE FUNCTION
         # Save 
-        fu_Uxt = fu_txhist.transpose() # Or np.transpose(fu, (2, 1, 0))
+        fu_Uxt = fu_txU.transpose() # Or np.transpose(fu, (2, 1, 0))
+        
+        metadata, savename = self.saveMC(uu, xx, tt, fu_Uxt, params, distribution)
+        if plot:
+            trunc = {'mU':[0, 0], 'mx':[0, 0], 'mt':[0, 0]}
+            self.plot_fu3D(xx, tt, uu, fu_Uxt, trunc=trunc)
+
+        return fu_Uxt, metadata['gridvars'], metadata['ICparams'], savename
+
+
+    def buildKDE_deltaX(self, num_grids, partial_data=False, MCcount=10, bandwidth='scott', save=True, plot=True, u_margin=0.0, renormalize=True, distribution='PDF'):
+        gridinfo = np.load(self.filedir.split('.')[0] + '_grid.npy')
+        u_txw = np.load(self.filedir)
+        xx = gridinfo.item().get('x')
+        tt = gridinfo.item().get('t')
+        params = gridinfo.item().get('params')
+
+        uu = np.linspace(np.min(u_txw), np.max(u_txw), num_grids)
+        fu_txU = np.zeros((u_txw.shape[0], u_txw.shape[1], num_grids))
+
+        if not partial_data:
+            MCcount = u_txw.shape[2]
+        
+        u_txw = u_txw[:, :, :MCcount]
+        for i in range(u_txw.shape[0]):
+            for j in range(u_txw.shape[1]):
+
+                nondelta_idx = np.where(u_txw[i, j, :] > u_margin)
+                nondelta_ratio = len(nondelta_idx[0])/u_txw.shape[2] if renormalize else 1.0
+                
+                if distribution == 'PDF':
+                    if len(nondelta_idx[0])<2:
+                        ku = np.zeros_like(uu)
+                    else:
+                        kernel = gaussian_kde(u_txw[i, j, nondelta_idx[0]], bw_method=bandwidth)
+                        ku = kernel(uu)
+                        #pdb.set_trace()
+                        
+                    fu_txU[i, j, :] = ku * nondelta_ratio
+
+                elif distribution == 'CDF':
+                    for k in range(num_grids):
+                        fu_txU[i, j, k] = kernel.integrate_box_1d(uu[0], uu[k])
+
+        # TODO: PUT IN SEPARATE FUNCTION
+        # Save 
+        fu_Uxt = fu_txU.transpose() # Or np.transpose(fu, (2, 1, 0))
         
         metadata, savename = self.saveMC(uu, xx, tt, fu_Uxt, params, distribution)
         if plot:

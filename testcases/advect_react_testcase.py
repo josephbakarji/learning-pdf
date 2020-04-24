@@ -26,13 +26,13 @@ class Runner:
 
 
     def solve(self, testplot=False):
-        nx = 220 
+        nx = 320 
         C = .4
         x_range = [0.0, 13]
         tmax = 1.5
-        dt = 0.03
+        dt = 0.02
 
-        ka = .6 
+        ka = 0.6 
         kr = 1.0 
         coeffs = [ka, kr]
 
@@ -45,7 +45,7 @@ class Runner:
         shift = 0.0
         shift_var = 0.0
 
-        num_realizations = 2500 
+        num_realizations = 2100 
         debug = False
         savefilename = self.case + str(num_realizations) + '.npy'
 
@@ -63,47 +63,51 @@ class Runner:
         return savefilename
 
 
+    def adjust(self, fu, gridvars, adjustparams):
+        mx = adjustparams['mx']
+        mu = adjustparams['mu']
+        mt = adjustparams['mt']
+        period = adjustparams['period']
+        
+        tt = np.linspace(gridvars['t'][0], gridvars['t'][1], int(round( (gridvars['t'][1] - gridvars['t'][0]) / gridvars['t'][2] )))
+        xx = np.linspace(gridvars['x'][0], gridvars['x'][1], int(round( (gridvars['x'][1] - gridvars['x'][0]) / gridvars['x'][2] )))
+        uu = np.linspace(gridvars['u'][0], gridvars['u'][1], int(round( (gridvars['u'][1] - gridvars['u'][0]) / gridvars['u'][2] )))
+        
+        lu = len(uu)
+        lx = len(xx)
+        lt = len(tt)
+
+        # Take only a portion
+        uu = uu[mu[0]:lu-mu[1]]
+        xx = xx[mx[0]:lx-mx[1]]
+        tt = tt[mt[0]:lt-mt[1]]
+        fu = fu[mu[0]:lu-mu[1], mx[0]:lx-mx[1], mt[0]:lt-mt[1]]
+
+        #decrease time frequency
+        indexes = np.array([i*period for i in range(len(tt)//period)])
+        tt = tt[indexes]
+        fu = fu[:, :, indexes]
+
+        gridvars['t'][0] = tt[0]
+        gridvars['t'][1] = tt[-1]
+        gridvars['t'][2] = (tt[-1]-tt[0])/len(tt)
+        gridvars['x'][0] = xx[0]
+        gridvars['x'][1] = xx[-1]
+        gridvars['x'][2] = (xx[-1]-xx[0])/len(xx)
+        gridvars['u'][0] = uu[0]
+        gridvars['u'][1] = uu[-1]
+        gridvars['u'][2] = (uu[-1]-uu[0])/len(uu)
+
+
+        return fu, gridvars
+
     def analyze(self, adjust=False, plot=False, learn=False, adjustparams={}, learnparams={'feature_opt':'1storder', 'coeforder':1}):
         dataman = DataIO(self.case) 
         fu, gridvars, ICparams = dataman.loadSolution(self.loadnamenpy, array_opt='marginal')
         
         ##Make fu smaller (in time)
         if adjust:
-
-            mx = adjustparams['mx']
-            mu = adjustparams['mu']
-            mt = adjustparams['mt']
-            period = adjustparams['period']
-            
-            tt = np.linspace(gridvars['t'][0], gridvars['t'][1], int(round( (gridvars['t'][1] - gridvars['t'][0]) / gridvars['t'][2] )))
-            xx = np.linspace(gridvars['x'][0], gridvars['x'][1], int(round( (gridvars['x'][1] - gridvars['x'][0]) / gridvars['x'][2] )))
-            uu = np.linspace(gridvars['u'][0], gridvars['u'][1], int(round( (gridvars['u'][1] - gridvars['u'][0]) / gridvars['u'][2] )))
-            
-            lu = len(uu)
-            lx = len(xx)
-            lt = len(tt)
-
-            # Take only a portion
-            uu = uu[mu[0]:lu-mu[1]]
-            xx = xx[mx[0]:lx-mx[1]]
-            tt = tt[mt[0]:lt-mt[1]]
-            fu = fu[mu[0]:lu-mu[1], mx[0]:lx-mx[1], mt[0]:lt-mt[1]]
-
-            #decrease time frequency
-            indexes = np.array([i*period for i in range(len(tt)//period)])
-            tt = tt[indexes]
-            fu = fu[:, :, indexes]
-
-            gridvars['t'][0] = tt[0]
-            gridvars['t'][1] = tt[-1]
-            gridvars['t'][2] = (tt[-1]-tt[0])/len(tt)
-            gridvars['x'][0] = xx[0]
-            gridvars['x'][1] = xx[-1]
-            gridvars['x'][2] = (xx[-1]-xx[0])/len(xx)
-            gridvars['u'][0] = uu[0]
-            gridvars['u'][1] = uu[-1]
-            gridvars['u'][2] = (uu[-1]-uu[0])/len(uu)
-
+            fu, gridvars = self.adjust(fu, gridvars, adjustparams)
         grid = PdfGrid(gridvars)
 
         if plot:
@@ -125,7 +129,7 @@ class Runner:
             nzthresh = learnparams['nzthresh']
                 
             # Learn     
-            difflearn = PDElearn(grid=grid, fu=fu, ICparams=ICparams, scase=self.case, trainratio=0.9, debug=False, verbose=True)
+            difflearn = PDElearn(grid=grid, fu=fu, ICparams=ICparams, scase=self.case, trainratio=0.8, debug=False, verbose=True)
             difflearn.fit_sparse(feature_opt=feature_opt, variableCoef=True, variableCoefBasis='simple_polynomial', \
                     variableCoefOrder=coeforder, use_sindy=True, sindy_alpha=sindy_alpha, RegCoef=RegCoef, nzthresh=nzthresh)
             
@@ -138,11 +142,15 @@ if __name__ == "__main__":
     loadnamenpy = 'advection_reaction_8285.npy' # PDF
     loadnamenpy = 'advection_reaction_2563.npy' # PDF
     loadnamenpy = 'advection_reaction_9279.npy' # PDF
+    loadnamenpy = 'advection_reaction_6477.npy' # PDF
+    loadnamenpy = 'advection_reaction_6977.npy' # g=u, PDF
+    loadnamenpy = 'advection_reaction_3124.npy' # g=u, CDF
 
     #savenameMC = 'advection_reaction500.npy'
     savenameMC = 'advection_reaction1200.npy' 
     savenameMC = 'advection_reaction1300.npy' 
-    savenameMC = 'advection_reaction2500.npy' 
+    savenameMC = 'advection_reaction2500.npy'  # g = u**2
+    savenameMC = 'advection_reaction2100.npy'  # g = u
 
     R = Runner()
     R.loadnamenpy = loadnamenpy
@@ -155,29 +163,34 @@ if __name__ == "__main__":
             print('some invalid argument')
     else:
 
-        buildkde    = False 
-        adjust      = True 
+        #f = open("log.out", 'w+')
+        #sys.stdout = f
+
+        buildkde    = False
+        kdedx       = False 
+        adjust      = True
         plot        = False 
         learn       = True
 
-        nu = 230
-        u_margin = 0.1
+        nu = 250
+        u_margin = 0.0
         distribution='CDF'
 
         period = 1
-        mu = [10, 0]
+        mu = [30, 0]
         mx = [0, 0]
         mt = [0, 0]
 
         feature_opt         = '1storder'
         coeforder           = 2
         sindy_alpha         = 0.01
-        RegCoef             = 0.00006
-        nzthresh            = 1e-300
+        nzthresh            = 1e-90
+        RegCoef             = 0.000004
 
         if buildkde:
             MCprocess = MCprocessing(savenameMC, case=R.case)
-            a, b, c, savenamepdf = MCprocess.buildKDE(nu, plot=plot, save=True, u_margin=u_margin, distribution=distribution)
+            kde = MCprocess.buildKDE_deltaX if kdedx else MCprocess.buildKDE
+            a, b, c, savenamepdf = kde(nu, plot=plot, save=True, u_margin=u_margin, bandwidth='scott', distribution=distribution)
             loadnamenpy = savenamepdf + '.npy'
             print(loadnamenpy)
             R.loadnamenpy = loadnamenpy
@@ -186,5 +199,5 @@ if __name__ == "__main__":
         learnparams = {'feature_opt':feature_opt, 'coeforder':coeforder, 'sindy_alpha':sindy_alpha, 'RegCoef':RegCoef, 'nzthresh':nzthresh}
         R.analyze(adjust=adjust, plot=plot, learn=learn, adjustparams=aparams, learnparams=learnparams)
 
-
+        #f.close()
     

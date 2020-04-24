@@ -1,0 +1,63 @@
+
+- MC simulations
+	- Input: IC, case, MCcount, solver, etc.
+	- Output: u_xtw
+		- save to mc_results
+- Build KDE
+	- Input: u_txw, MCsim_metadata, metadata; bw, etc
+	- Output: f_Uxt 
+		- save to pdf_results
+- Learn
+	- Input: f_Uxt, regcoef, etc.
+	- Output: coeffs, accuracy, score etc. 
+		- save to learning_results
+			
+- Visualize	
+
+-----------------------
+
+ISSUES:
+	- Not learning the exact equations for advection reaction.
+	- CDF results are slightly better (?)
+
+TO DO:	
+	- Replicate Burgers' equation with the new solver (to debug the solver)
+	- Replicate Simple advection equation
+	- Write code to display existing data
+	- Write code to clear up files that are manually deleted
+
+
+MANAGE DATA:
+	- Save MC results metadata and display them
+	-  
+
+COMPILE RESULTS
+	- Plot coefficients as a function of reg or other variables (MC etc)
+	- Plot accuracy as a function of ref or other variables (MC etc) 
+
+
+
+TESTS:
+
+Test cases:
+	- Burgers'
+	- advection reaction
+		- u**2
+		- u
+		- ... ?
+	- linear advection
+
+Results variables (accuracy and score)
+	- PDF vs. CDF
+	- Function of regularization 
+	- Function of MC count 
+	- Function of initial distribution
+	- Function of dx, dt, du
+
+KDE test variables:
+	- getting rid of delta effect
+	- u_margin effect
+	- normalize effect
+
+Optimization tests:
+	- Attempt L2 regularization with known terms

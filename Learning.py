@@ -25,7 +25,7 @@ class PDElearn:
 
 #########################################
 
-    def train(self, X, y, RegType='L1', RegCoef=0.00001, maxiter=1000, tolerance=0.0001):
+    def train(self, X, y, RegType='L1', RegCoef=0.00001, maxiter=10000, tolerance=0.0001):
 
         if RegType == 'L1':
             lin = linear_model.Lasso(alpha=RegCoef, max_iter=maxiter, normalize=True, tol=tolerance)
@@ -41,7 +41,7 @@ class PDElearn:
 
 #########################################
 
-    def train_sindy(self, X, y, RegCoef=0.0001, maxiter=1000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
+    def train_sindy(self, X, y, RegCoef=0.0001, maxiter=10000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
 
         null_feature_idx = [] # indeces of zeros 
         rem_feature_idx = range(X.shape[1]) # indeces of nonzero terms
@@ -52,7 +52,7 @@ class PDElearn:
             flag_repeat = False
 
             #if self.verbose:
-            print("\n\nSindy iteration : %d"%(i))
+           # print("\n\nSindy iteration : %d"%(i))
 
             # Remove terms with coefficients below threshold sindy_alpha
             for j, coefficient in enumerate(lin.coef_): 
@@ -60,8 +60,8 @@ class PDElearn:
                     flag_repeat = True
                     null_feature_idx.append(rem_feature_idx[j])
 
-            if self.verbose: 
-                self.print_report(lin, X, y, rem_feature_idx)
+           # if self.verbose: 
+           #     self.print_report(lin, X, y, rem_feature_idx)
 
             # Update indeces of non-zero terms 
             rem_feature_idx = [i for i in rem_feature_idx if i not in set(null_feature_idx)]
