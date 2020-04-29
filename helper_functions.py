@@ -2,6 +2,19 @@ import numpy as np
 from math import ceil, floor
 
 
+def makeGrid(x):
+    # input: x = [x0, xend, dx] 
+    print('import from pdfsolver')
+    nx = nx = int(round((x[1] - x[0])/x[2] + 1 ))  
+    xx = np.linspace(x[0], x[1], nx)
+    return xx, nx
+
+def makeGridVar(x):
+    # output: x = [x0, xend, dx], input: ^
+    print('import from pdfsolver')
+    xvar = [x[0], x[-1], x[1]-x[0]]
+    return xvar
+
 def myfloor(x):
     n = 8 # Can be added as input
     return floor(x*10.0**n)/10.0**n
@@ -10,9 +23,6 @@ def myceil(x):
     n = 8 # Can be added as input
     return ceil(x*10.0**n)/10.0**n
     
-def makesavename(IC, version):
-    return 'u0'+IC['u0']+'_'+'fu0'+IC['fu0']+'_'+'fk'+IC['fk']+'_'+np.str(version)
-
 def smooth(y, box_pts):
     box = np.ones(box_pts)/box_pts
     y_smooth = np.convolve(y, box, mode='same')

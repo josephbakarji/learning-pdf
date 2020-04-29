@@ -5,6 +5,7 @@ from sklearn import linear_model
 from datamanage import DataIO
 import pdb
 from __init__ import *
+from helper_functions import *
 
 
 class PdfGrid:
@@ -17,26 +18,23 @@ class PdfGrid:
         if 'x' in gridvars:
             self.x0     = gridvars['x'][0] 
             self.xend   = gridvars['x'][1] 
-            self.nx     = round( (gridvars['x'][1] - gridvars['x'][0]) / gridvars['x'][2] )
-            self.xx     = np.linspace(self.x0, self.xend, self.nx)
+            self.xx, self.nx = makeGrid(gridvars['x'])
+            ## TODO: USE
 
         if 't' in gridvars: 
             self.t0     = gridvars['t'][0]                                               
-            self.tend   = gridvars['t'][1]                                                
-            self.nt     = round( (gridvars['t'][1] - gridvars['t'][0]) / gridvars['t'][2] )
-            self.tt     = np.linspace(self.t0, self.tend, self.nt)
+            self.tend   = gridvars['t'][1]
+            self.tt, self.nt = makeGrid(gridvars['t'])                                             
 
         if 'k' in gridvars:
             self.k0     = gridvars['k'][0]                                               
-            self.kend   = gridvars['k'][1]                                                
-            self.nk     = round( (gridvars['k'][1] - gridvars['k'][0]) / gridvars['k'][2] )
-            self.kk     = np.linspace(self.k0, self.kend, self.nk)
+            self.kend   = gridvars['k'][1]
+            self.kk, self.nk = makeGrid(gridvars['k'])                                             
 
         if 'u' in gridvars: 
             self.u0     = gridvars['u'][0]                                               
-            self.uend   = gridvars['u'][1]                                               
-            self.nu     = round( (gridvars['u'][1] - gridvars['u'][0]) / gridvars['u'][2] )
-            self.uu     = np.linspace(self.u0, self.uend, self.nu)
+            self.uend   = gridvars['u'][1]
+            self.uu, self.nu = makeGrid(gridvars['u'])                                  
             
 
     def blank_pdf(self, variables):
@@ -50,6 +48,48 @@ class PdfGrid:
             print('invalid variable option')
             return None
 
+    def adjust(self, fu, adjustparams):
+        mx = adjustparams['mx']
+        mu = adjustparams['mu']
+        mt = adjustparams['mt']
+        px = adjustparams['px']
+        pu = adjustparams['pu']
+        pt = adjustparams['pt']
+        
+        # Take only a portion
+        uu = self.uu[mu[0]:self.nu-mu[1]]
+        xx = self.xx[mx[0]:self.nx-mx[1]]
+        tt = self.tt[mt[0]:self.nt-mt[1]]
+        fu = fu[mu[0]:self.nu-mu[1], mx[0]:self.nx-mx[1], mt[0]:self.nt-mt[1]]
+
+        #decrease grid frequency
+        tidx = np.array([i*pt for i in range(len(tt)//pt)])
+        xidx = np.array([i*px for i in range(len(xx)//px)])
+        uidx = np.array([i*pu for i in range(len(uu)//pu)])
+        tt = tt[tidx]
+        xx = xx[xidx]
+        uu = uu[uidx]
+        fu = fu[np.ix_(uidx, xidx, tidx)]
+
+        self.gridvars['u'] = makeGridVar(uu)
+        self.gridvars['x'] = makeGridVar(xx)
+        self.gridvars['t'] = makeGridVar(tt)
+        self.setGridParams(self.gridvars)
+
+        return fu
+
+def makeGrid(x):
+    # input: x = [x0, xend, dx] 
+    nx = int(round((x[1] - x[0])/x[2] + 1 ))  
+    xx = np.linspace(x[0], x[1], nx)
+    return xx, nx
+
+def makeGridVar(x):
+    # output: x = [x0, xend, dx], input: ^
+    xvar = [x[0], x[-1], x[1]-x[0]]
+    return xvar
+
+
     def printDetails(self):
         print("x0 = %5.2f | xend = %5.2f | nx = %d | dx = %5.3f"%(self.x0, self.xend, self.nx, self.xx[1]-self.xx[0]))
         print("t0 = %5.2f | tend = %5.2f | nt = %d | dt = %5.3f"%(self.t0, self.tend, self.nt, self.tt[1]-self.tt[0]))
@@ -57,6 +97,10 @@ class PdfGrid:
         print("k0 = %5.2f | kend = %5.2f | kt = %d | dk = %5.3f"%(self.k0, self.kend, self.nk, self.kk[1]-self.kk[0]))
         print("fuk size = %d"%(self.nx * self.nt * self.nu * self.nk))
 
+
+
+##################################################################
+##################################################################
 
 
 class PdfSolver:

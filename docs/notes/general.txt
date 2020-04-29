@@ -1,15 +1,13 @@
 
 TO DO:
 
-- Great improvements:
-    - choose data points with nonzero fu_t[:]
-    
+- Great improvements:    
     - Generate new examples
         - Try simple case with known solution.
         - u0(x) has to have compact support!
         - Replace example by something more complicated: g(u), get analytical result if possible?
     - Test why it's not working for multiple IC
-    - Learn Integro-differentil equation
+    - Learn Integro-differential equation
     - Use 
 
 Presentation:
@@ -164,6 +162,9 @@ Paper:
         - Use breaking time (shock) to stop simulation (in burgers)
         - Do I need to save f_uk ????????????????????????
         - filter out grid points where fu_t over all t is close to zero (solution doesn't change much there...
+        - Issue with storing x0, xend, nx then building vector. Better store x0, xend, nx (instead of dx)??
+            - This might be wrong, check grid.xx - (xend - x0)/dx gives len(x) - where dx is not xx[1]-xx[0]
+
 
     - Vizualization:
         - print features: write function makeFeatureNames (includes ^{01} -> 1*x)

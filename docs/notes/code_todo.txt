@@ -1,0 +1,32 @@
+TO DO NOW:
+
+* CheckDir exists only ICparams [should happen before not after the run]
+* Files for running experiments with specific purpose - e.g. Test effect of MC, test effect of u_margin, delta etc.
+* DataAnalysis module for reading data, displaying it, plotting it, 
+
+
+- Data Analysis:
+	- Display data
+		- MC
+		- PDF
+		- Learning
+	- Plot learning data and save.
+
+	- Function to clear up files that are manually deleted
+	- Function to Replicate learning results
+
+- Runs:
+	- Try learning advection without a source term (analytically).
+	- Learn advection with random K
+	- Test the effect of initial distirbution
+		- Try using simpler initial distirbutions(with less randomness)
+		- How does the delta function affect the results?
+		- 
+
+- Code fixing:
+	- Try bigger range eps=1e-2 (instead of 1e-3) [include as input]
+	- Setup simulation, trying different parameters, skipping if run already exists.
+
+
+	- Unify __init__.py files
+	- decrease float precision in saved data..

@@ -1,8 +1,9 @@
-datafile/
+mc_data/
+pdf_data/
+learn_data/
 figures/
 .ipynb_checkpoints/
 __pycache__/
 .DS_Store
 .*.swp
 .*.swo
-MCresults/

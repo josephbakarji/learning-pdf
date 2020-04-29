@@ -1,16 +1,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import linear_model
-from pdfsolver import PdfSolver, PdfGrid
+
 from scipy.signal import savgol_filter
 from numpy.polynomial.chebyshev import chebval, Chebyshev
 from sklearn.metrics import mean_squared_error
+
+from __init__ import *  ## fix - Imports from testcases directory! 
+from pdfsolver import PdfSolver, PdfGrid
+from datamanage import DataIO
+
+
 import time
 import pdb
-from __init__ import *
 
 class PDElearn:
-    def __init__(self, fuk=None, grid=None, fu=None, ICparams=None, scase='advection_marginal', trainratio = 0.7, debug=False, verbose=True):
+    def __init__(self, fu=None, grid=None, fuk=None, ICparams=None, scase='advection_marginal', trainratio = 0.7, debug=False, verbose=True):
         self.fuk = fuk
         self.fu = fu
         self.grid = grid
@@ -41,27 +46,55 @@ class PDElearn:
 
 #########################################
 
-    def train_sindy(self, X, y, RegCoef=0.0001, maxiter=10000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
+    def choose_optimizer(self, LassoType='Lasso', RegCoef=0.00001, cv=5, criterion='aic', maxiter=10000, tolerance=0.0001, normalize=True):
+
+        if LassoType == 'Lasso':
+            lin = linear_model.Lasso(alpha=RegCoef, max_iter=maxiter, normalize=normalize, tol=tolerance)
+        elif LassoType == 'LassoCV':
+            lin = linear_model.LassoCV(eps=0.0001, cv=cv, normalize=normalize)
+        elif LassoType == 'LassoLarsCV':
+            lin = linear_model.LassoLarsCV(cv=cv, normalize=normalize)
+        elif LassoType == 'LassoLarsIC':
+            lin = linear_model.LassoLarsIC(criterion=criterion, normalize=normalize, max_iter=maxiter)
+        else:
+            raise Exception("wrong option")
+
+        return lin
+
+#########################################
+
+    def train_single(self, lin, X, y):
+        lin.fit(X, y)
+        rem_feature_idx = []
+        for idx, coef in enumerate(lin.coef_):
+            if abs(coef) != 0.0:
+                rem_feature_idx.append(idx)
+        return lin, rem_feature_idx
+
+#########################################
+
+    def train_rfe(self, lin, X, y, rfe_iter=10, rfe_alpha=0.001, print_rfeiter=False):
+        # Implements recursive feature elimination (RFE) with Lasso
 
         null_feature_idx = [] # indeces of zeros 
         rem_feature_idx = range(X.shape[1]) # indeces of nonzero terms
-        for i in range(sindy_iter):
 
-            lin = linear_model.Lasso(alpha=RegCoef, max_iter=maxiter, normalize=True, tol=tolerance)
-            lin.fit(X[:, rem_feature_idx], y)
+        for i in range(rfe_iter):
             flag_repeat = False
+            lin.fit(X[:, rem_feature_idx], y)
 
-            #if self.verbose:
-           # print("\n\nSindy iteration : %d"%(i))
+            if print_rfeiter:
+                print("\n\nRecursive Feature Elimination iteration : %d"%(i))
 
-            # Remove terms with coefficients below threshold sindy_alpha
+            # Eliminate terms with coefficients below threshold rfe_alpha
+            # pdb.set_trace()
             for j, coefficient in enumerate(lin.coef_): 
-                if abs(coefficient) <= sindy_alpha:
+                if abs(coefficient) <= rfe_alpha:
                     flag_repeat = True
                     null_feature_idx.append(rem_feature_idx[j])
 
-           # if self.verbose: 
-           #     self.print_report(lin, X, y, rem_feature_idx)
+            if print_rfeiter: 
+                self.print_report(lin, X, y, rem_feature_idx)
 
             # Update indeces of non-zero terms 
             rem_feature_idx = [i for i in rem_feature_idx if i not in set(null_feature_idx)]
@@ -75,59 +108,105 @@ class PDElearn:
                 return lin, rem_feature_idx
         
         if flag_repeat == True:
-            print("SINDy did not converge")
+            print("Recursive Feature Selection did not converge")
             return lin, rem_feature_idx
 
 
 #########################################
-    #def train_sindy_partialfit(self, Xlist, ylist, RegCoef=0.0001, maxiter=1000, tolerance=0.00001, sindy_iter=10, sindy_alpha=0.001):
+    #def train_rfe_partialfit(self, Xlist, ylist, RegCoef=0.0001, maxiter=1000, tolerance=0.00001, rfe_iter=10, rfe_alpha=0.001):
 #########################################
 
-    def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', \
-            RegCoef=0.000001, maxiter=5000, tolerance=0.00001, use_sindy=True, sindy_iter=10, sindy_alpha=0.0001, shuffle=False, nzthresh=1e-200):
+    def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=0, variableCoefBasis='simple_polynomial', \
+            LassoType='Lasso', RegCoef=None, cv=None, criterion=None, maxiter=10000, tolerance=0.00001, use_rfe=False, normalize=True,
+            rfe_iter=10, rfe_alpha=None, print_rfeiter=False, shuffle=False, nzthresh=1e-200, basefile='', adjustgrid={}, save=True, 
+            comments=''):
 
-
+        # Make features and training set
         F = Features(scase=self.scase, option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
         self.featurelist, self.labels, self.featurenames = F.makeFeatures(self.grid, self.fu, self.ICparams)
         Xtrain, ytrain, Xtest, ytest = self.makeTTsets(self.featurelist, self.labels, shuffle=shuffle, threshold=nzthresh)
 
-        t0 = time.time()
-        if use_sindy:
-            lin1, rem_feature_idx = self.train_sindy(Xtrain, ytrain, RegCoef=RegCoef, maxiter=maxiter, tolerance=tolerance, sindy_iter=sindy_iter, sindy_alpha=sindy_alpha)
+        # Choose optimization algorithm
+        lin = self.choose_optimizer(LassoType=LassoType, RegCoef=RegCoef, cv=cv, criterion=criterion, maxiter=maxiter, tolerance=tolerance, normalize=normalize)
+
+        # Train model using Lasso
+        if use_rfe:
+            lin, rem_feature_idx = self.train_rfe(lin, Xtrain, ytrain, rfe_iter=rfe_iter, rfe_alpha=rfe_alpha, print_rfeiter=print_rfeiter)
             Xtrain = Xtrain[:, rem_feature_idx]
             Xtest = Xtest[:, rem_feature_idx]
+            coefficients = lin.coef_
         else:
-            lin1 = self.train(Xtrain, ytrain, RegCoef=RegCoef, maxiter=maxiter, tolerance=tolerance)
-            rem_feature_idx = []
-            for idx, coef in enumerate(lin1.coef_):
-                if abs(coef) != 0.0:
-                    rem_feature_idx.append(idx)
-        print('Sindy learning time', time.time() - t0)
+            lin, rem_feature_idx = self.train_single(lin, Xtrain, ytrain)
+            coefficients = lin.coef_[rem_feature_idx]
 
-        trainRMSE = np.sqrt(mean_squared_error(ytrain, lin1.predict(Xtrain)))
-        testRMSE = np.sqrt(mean_squared_error(ytest, lin1.predict(Xtest)))
-        trainScore = lin1.score(Xtrain, ytrain)
-        testScore = lin1.score(Xtest, ytest)
-        rem_featurenames = [self.featurenames[i] for i in rem_feature_idx]
+        # Outputs
+        output = {}
 
-        # Replace with print_report if possible
-        if self.verbose: 
-            print("\n#############################\n ")
-            print('Features option: ' + feature_opt )
-            #pdb.set_trace()
-
-            print("---- Errors ----")
-            print("Train Score \t= %5.3f"%(trainScore))
-            print("Test Score \t= %5.3f"%(testScore)) 
-            print("Train RMSE \t= %5.3e"%(trainRMSE))
-            print("Test RMSE \t= %5.3e"%(testRMSE) )
-            
-            print("---- Coefficients ----")
-            for i, feat_idx in enumerate(rem_feature_idx): 
-                    print("%s \t:\t %7.9f" %( self.featurenames[feat_idx], lin1.coef_[i]))
-            print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
+        # Compute Erros and Scores
+        output['trainRMSE'] = np.sqrt(mean_squared_error(ytrain, lin.predict(Xtrain)))
+        output['testRMSE'] = np.sqrt(mean_squared_error(ytest, lin.predict(Xtest)))
+        output['trainScore'] = lin.score(Xtrain, ytrain)
+        output['testScore'] = lin.score(Xtest, ytest)
         
-        return lin1.coef_, rem_featurenames, trainRMSE, testRMSE, trainScore, testScore
+        rem_featurenames = [self.featurenames[i] for i in rem_feature_idx]
+        output['featurenames'] = rem_featurenames
+        output['coef'] = coefficients.tolist() # Might not work for RFE !! 
+        output['n_iter'] = lin.n_iter_
+
+        # Different optimizers have different outputs
+        if LassoType =='LassoLarsIC':
+            output['alpha'] = lin.alpha_.tolist()
+            output['criterion_path'] = lin.criterion_.tolist()
+
+        elif LassoType == 'LassoCV':            
+            output['alpha'] = lin.alpha_.tolist()
+            output['alpha_mse_path'] = lin.mse_path_.mean(axis=1).tolist()
+            output['alpha_path'] = lin.alphas_.tolist()
+            output['dual_gap'] = lin.dual_gap_
+
+        elif LassoType in {'LassoLarsCV', 'LarsCV'}:
+            output['alpha'] = lin.alpha_
+            output['alpha_mse_path'] = lin.mse_path_.mean(axis=1).tolist()
+            output['alpha_path'] = lin.alphas_.tolist()
+            output['coef_path'] = lin.coef_path_.tolist()
+
+        elif LassoType == 'Lasso':
+            output['alpha'] = RegCoef
+
+        
+        # Printing
+        if self.verbose:
+            self.print_results(feature_opt, output['trainScore'], output['testScore'], output['trainRMSE'], output['testRMSE'], rem_featurenames, coefficients, output['n_iter'])
+            for key, val in output.items():
+                print(key, '\t\t:\t\t',val)
+
+        # Saving 
+        if save:
+            savedict= {
+            'ICparams':{
+                      'basefile'            : basefile,
+                      'adjustgrid'          : adjustgrid,
+                      'feature_opt'         : feature_opt,
+                      'trainratio'          : self.trainratio, 
+                      'variableCoef'        : variableCoef,
+                      'variableCoefOrder'   : variableCoefOrder,
+                      'variableCoefBasis'   : variableCoefBasis,
+                      'LassoType'           : LassoType,
+                      'cv'                  : cv,
+                      'criterion'           : criterion,
+                      'use_rfe'             : use_rfe, 
+                      'rfe_alpha'           : rfe_alpha, 
+                      'nzthresh'            : nzthresh,
+                      'maxiter'             : maxiter,
+                      'comments'            : comments
+                                },
+            'output': output
+                        }
+
+            learning_filename = self.saveLearning(savedict)
+
+        return output
+
 
 #########################################
     
@@ -162,16 +241,75 @@ class PDElearn:
 #########################################
 #########################################
 
-    def debug_plot(self, x, y1, y2, name): 
-        fig, ax = plt.subplots(1, 2, sharey=True)
-        ax[0].plot(x, y1) 
-        ax[0].set_ylabel('f')
-        ax[0].set_title(name) 
-        
-        ax[1].plot(x, y2)
-        ax[1].set_ylabel('f')
-        ax[1].set_title(name+' smoothed')
+    def saveLearning(self, savedict):
+        D = DataIO(self.scase, directory=LEARNDIR)
+        savename = savedict['ICparams']['basefile'].split('.')[0]
+        savenametxt = D.saveJsonFile(savename, savedict)
+        return savenametxt
 
+#########################################
+#########################################
+
+    def print_results(self, feature_opt, trainScore, testScore, trainRMSE, testRMSE, rem_featurenames, coefficients, n_iter):
+        print("\n#############################\n ")
+        print('Features option: ' + feature_opt )
+        #pdb.set_trace()
+
+        print("---- Errors ----")
+        print("Train Score \t= %5.3f"%(trainScore))
+        print("Test Score \t= %5.3f"%(testScore)) 
+        print("Train RMSE \t= %5.3e"%(trainRMSE))
+        print("Test RMSE \t= %5.3e"%(testRMSE) )
+        
+        print("---- Coefficients ----")
+        for featurenames, coef in zip(rem_featurenames, coefficients): 
+                print("%s \t:\t %7.9f" %( featurenames, coef))
+        print("number of iterations: ", n_iter)
+
+    def print_report(self, lin, X, y, rem_feature_idx):
+        print("\n##########\n")
+        trainMSE = mean_squared_error(y, lin.predict(X[:, rem_feature_idx]))
+        print("---- Errors ----")
+        print("Train Score \t= %5.3f" %(lin.score(X[:, rem_feature_idx], y)) )
+        print("Train MSE \t= %5.3e"%(trainMSE))
+
+        print("---- Coefficients ----")
+        for i, feat_idx in enumerate(rem_feature_idx): 
+                print("%s \t:\t %7.9f" %( self.featurenames[feat_idx], lin.coef_[i]))
+        print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
+
+
+    def print_full_report(self, lin, Xtrain, ytrain, Xtest, ytest, rem_feature_idx, featurenames):
+        # TODO: use tabulate() package/function
+
+        print("\n##########\n")
+        if len(rem_feature_idx) != 0:
+            trainRMSE = np.sqrt(mean_squared_error(ytrain, lin.predict(Xtrain[:, rem_feature_idx])))
+            testRMSE = np.sqrt(mean_squared_error(ytest, lin.predict(Xtest[:, rem_feature_idx])))
+            print("---- Errors ----")
+            print("Train Score \t= %5.3f" %(lin.score(Xtrain[:, rem_feature_idx], ytrain)) )
+            print("Test Score \t= %5.3f" %(lin.score(Xtest[:, rem_feature_idx], ytest)) )
+            print("Train RMSE \t= %5.3e"%(trainRMSE))
+            print("Test RMSE \t= %5.3e"%(trainRMSE))
+
+
+            print("---- Coefficients ----")
+            for i, feat_idx in enumerate(rem_feature_idx): 
+                    print("%s \t:\t %7.9f" %(featurenames[feat_idx], lin.coef_[i]))
+            print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(featurenames)))
+
+    # def debug_plot(self, x, y1, y2, name): 
+    #     fig, ax = plt.subplots(1, 2, sharey=True)
+    #     ax[0].plot(x, y1) 
+    #     ax[0].set_ylabel('f')
+    #     ax[0].set_title(name) 
+        
+    #     ax[1].plot(x, y2)
+    #     ax[1].set_ylabel('f')
+    #     ax[1].set_title(name+' smoothed')
+
+#########################################
+#########################################
 #########################################
 
     def makeTTsets(self, featurelist, labels, shuffle=False, threshold=1e-90):
@@ -213,44 +351,12 @@ class PDElearn:
     def make_y(self, f, nzidx):
         return f[nzidx].reshape((np.prod(f[nzidx].shape)))
 
-###################################
 
-    def print_report(self, lin, X, y, rem_feature_idx):
-        print("\n##########\n")
-        trainMSE = mean_squared_error(y, lin.predict(X[:, rem_feature_idx]))
-        print("---- Errors ----")
-        print("Train Score \t= %5.3f" %(lin.score(X[:, rem_feature_idx], y)) )
-        print("Train MSE \t= %5.3e"%(trainMSE))
-
-        print("---- Coefficients ----")
-        for i, feat_idx in enumerate(rem_feature_idx): 
-                print("%s \t:\t %7.9f" %( self.featurenames[feat_idx], lin.coef_[i]))
-        print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(self.featurenames)))
-
-
-    def print_full_report(self, lin, Xtrain, ytrain, Xtest, ytest, rem_feature_idx, featurenames):
-        # TODO: use tabulate() package/function
-
-        print("\n##########\n")
-        if len(rem_feature_idx) != 0:
-            trainRMSE = np.sqrt(mean_squared_error(ytrain, lin.predict(Xtrain[:, rem_feature_idx])))
-            testRMSE = np.sqrt(mean_squared_error(ytest, lin.predict(Xtest[:, rem_feature_idx])))
-            print("---- Errors ----")
-            print("Train Score \t= %5.3f" %(lin.score(Xtrain[:, rem_feature_idx], ytrain)) )
-            print("Test Score \t= %5.3f" %(lin.score(Xtest[:, rem_feature_idx], ytest)) )
-            print("Train RMSE \t= %5.3e"%(trainRMSE))
-            print("Test RMSE \t= %5.3e"%(trainRMSE))
-
-
-            print("---- Coefficients ----")
-            for i, feat_idx in enumerate(rem_feature_idx): 
-                    print("%s \t:\t %7.9f" %(featurenames[feat_idx], lin.coef_[i]))
-            print("---- Sparsity = %d / %d "%(len(rem_feature_idx), len(featurenames)))
-###########################################3
-###########################################3
-###########################################3
-###########################################3
-###########################################3
+###########################################
+###########################################
+###########################################
+###########################################
+###########################################
 
 class Features:
     def __init__(self, scase='advection_marginal', option='1storder', variableCoef=False, variableCoefOrder=2, variableCoefBasis='simple_polynomial', addNonlinear=False):
@@ -267,7 +373,9 @@ class Features:
         # '2ndorder': second order in time (also adds f_xt)
         # '1storder': first order in time
         # '1storder_close': learn closure terms
-        if self.scase == 'advection_marginal' or self.scase == 'burgersMC' or self.scase=='advection_reaction':
+
+        ## TODO: Rewrite this as conditioned on dimension: (u, t) or (u, x, t)
+        if self.scase == 'advection_marginal' or self.scase == 'burgersMC' or self.scase=='advection_reaction' or self.scase=='advection_reaction_analytical':
             return self.makeFeatures_AdvMar(grid, fu, ICparams)
         elif self.scase == 'reaction_linear':
             return self.makeFeatures_ReaLin(grid, fu, ICparams)
@@ -387,7 +495,7 @@ class Features:
         dx = grid.xx[1] - grid.xx[0]
         dt = grid.tt[1] - grid.tt[0]
         du = grid.uu[1] - grid.uu[0]
-       
+
         if self.option == '2ndorder':
             ddict = {'', 't', 'tt', 'xt', 'x', 'xx', 'xxx', 'xxxx', 'U', 'UU', 'UUU', 'xU', 'xUU', 'xxU', 'xxUU'}
         elif self.option == '1storder' or self.option == '1storder_close':
