@@ -1,5 +1,6 @@
 import numpy as np
 from math import ceil, floor
+import pdb
 
 
 def makeGrid(x):
@@ -51,6 +52,57 @@ def latexify(s):
         newelem.append('$')
         news.append(''.join(newelem))
 
+    return news
+
+def latexify_varcoef(s, cdf=False):
+    if cdf:
+        function = 'F'
+    else:
+        function = 'f'
+        
+    news = []
+    for elem in s:
+        newelem = []
+        bracecount = 0
+        for i, letter in enumerate(elem):
+            if letter == 'f':
+                if elem[3] != '1':
+                    newelem.append(function)
+                    newelem.append('_')
+                    newelem.append('{')
+                    bracecount += 1
+                # else:
+                #     pdb.set_trace()
+            elif letter == '_':
+                if elem[3] != '1':
+                    newelem.append('_')
+                    newelem.append('{')
+                    bracecount += 1
+            elif letter == '^':
+                Upower = int(elem[i+2])
+                xpower = int(elem[i+3])
+                x = ''
+                if xpower > 0:
+                    if xpower == 1:
+                        x = 'x'
+                    else:
+                        x = 'x^'+str(xpower)
+                U = ''
+                if Upower > 0:
+                    if Upower == 1:
+                        U = 'U'
+                    else:
+                        U = 'U^'+str(Upower)
+                coef = x+U
+                break
+            else:
+                if elem[3] != '1':
+                    newelem.append(letter)
+        for i in range(bracecount): 
+            newelem.append('}')
+        newelem = ['$', coef] + newelem + ['$']
+        news.append(''.join(newelem))
+        # pdb.set_trace()  
     return news 
 
 def chebyshev_poly(i):

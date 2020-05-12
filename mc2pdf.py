@@ -22,28 +22,41 @@ from pdfsolver import makeGrid, makeGridVar
 
 
 class MCprocessing:
-    def __init__(self, filename, case='burgersMC'):
+    def __init__(self, filename, case='burgers'):
         self.filename = filename # 'xyz.npy'
         self.filedir = MCDIR + filename 
         self.case = case
 
 
-    def buildKDE(self, num_grids, MCcount=None, bandwidth='scott', save=True, plot=True, u_margin=0.0, distribution='PDF'):
+    def buildKDE(self, num_grids, MCcount=None, bandwidth='scott', save=True, plot=False, u_margin=0.0, distribution='PDF', checkExistence=True):
         tt, xx, u_txw = self.loadMC()
-        # TODO: Check if requested KDE solution with same params already exists; return it if it does...
-
         uu = np.linspace(np.min(u_txw) + u_margin, np.max(u_txw), num_grids)
-        fu_txU = np.zeros((u_txw.shape[0], u_txw.shape[1], num_grids))
-
-
         if MCcount is None:
             MCcount = u_txw.shape[2]
+
+        # Check if run already exists
+        loader = DataIO(case=self.case, basefile=self.filename)
+        metadata = self.makeMetadata(uu, xx, tt, distribution, MCcount, bandwidth, u_margin)
+        if checkExistence:
+            exists, filename = loader.checkMetadataInDir(metadata)
+            if exists:
+                return filename + '.npy'
+
+        print("---- Building KDE ----")
+        # Initialize distribution array
+        fu_txU = np.zeros((u_txw.shape[0], u_txw.shape[1], num_grids))
+
         
+        bar = progressbar.ProgressBar(maxval=np.prod(u_txw.shape[:2]), widgets=[progressbar.Bar('>', '[', ']'), ' ', progressbar.Percentage()])
+        bar.start()
+        bark = 0
+
+
         u_txw = u_txw[:, :, :MCcount]
         for i in range(u_txw.shape[0]):
             for j in range(u_txw.shape[1]):
                 kernel = gaussian_kde(u_txw[i, j, :], bw_method=bandwidth)
-
+                
                 if distribution == 'PDF':
                     fu_txU[i, j, :] = kernel(uu)   
 
@@ -51,15 +64,17 @@ class MCprocessing:
                     for k in range(num_grids):
                         fu_txU[i, j, k] = kernel.integrate_box_1d(uu[0], uu[k])
 
+                bar.update(bark+1)
+                bark+=1
+
         fu_Uxt = fu_txU.transpose() # Or np.transpose(fu, (2, 1, 0))
-        # Save 
-        metadata, savename = self.saveDistribution(uu, xx, tt, fu_Uxt, distribution, MCcount, bandwidth, u_margin, dontsave=not(save))
+        filename = self.saveDistribution(fu_Uxt, metadata)
         
-        if plot:
-            self.plot_fu3D(xx, tt, uu, fu_Uxt)
+        # Get rid of this - at least do it from Visualize
+        # if plot:
+        #     self.plot_fu3D(xx, tt, uu, fu_Uxt)
 
-        return fu_Uxt, metadata['gridvars'], metadata['ICparams'], savename
-
+        return filename
 
 ###################################
 
@@ -73,28 +88,21 @@ class MCprocessing:
 
         return tt, xx, u_txw
 
-    def saveDistribution(self, uu, xx, tt, fu_Uxt, distribution, MCcount, bandwidth, u_margin, dontsave=False):
+    def saveDistribution(self, fu_Uxt, metadata):
         saver = DataIO(case=self.case, basefile=self.filename)
-        
-        # params is duplicated: saved in mc_results also
+        savename = saver.saveSolution(fu_Uxt, metadata)
+
+        return savename 
+
+    def makeMetadata(self, uu, xx, tt, distribution, MCcount, bandwidth, u_margin):
         gridvars = {'u': makeGridVar(uu), 't': makeGridVar(tt), 'x':makeGridVar(xx)}
-        ICparams = {'u0':'gaussian', 
-                    'fu0':"gaussians", # Fix that to sample_example
-                    'distribution':distribution,
+        ICparams = {'distribution':distribution,
                     'MCcount': MCcount,
                     'bandwidth': bandwidth,
                     'u_margin': u_margin,
                     'MCfile': self.filename}
-
-        # TODO: save fu_Uxt without gridvars (might be more memory efficient for .npy)
-        solution = fu_Uxt
         metadata = {'ICparams': ICparams, 'gridvars': gridvars} 
-
-        savename = None
-        if not dontsave: # If using the function just to build metadata
-            savename = saver.saveSolution(solution, metadata)
-
-        return metadata, savename 
+        return metadata
 
 ##################################################################
 ##################################################################

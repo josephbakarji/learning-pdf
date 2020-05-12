@@ -100,20 +100,12 @@ Paper:
 Paper:
 
     - Generate new examples
-        - u0(x) has to have compact support!
-        - Replace example by something more complicated: g(u), get analytical result if possible?
-        - Try simple case with known solution.
-
-        - Apply it to reaction problem with known PDF equation (results)
         - Apply it to conservative form of reaction equation
-
         - Apply to marginal advection problem with unknown PDF equation
         - Compare with and without variable coefficients
 
         - Learn conservative form.
         - Learn integro-differential equation.
-        - Use Monte Carlo?
-
 
     - Check for conservative equation for PDF. (see Mtalba's paper)
     - Constrain PDF equation in Problem definition more explicitely in conservative form.

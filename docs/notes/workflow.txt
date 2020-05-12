@@ -65,7 +65,8 @@ Test cases:
 	- advection reaction
 		- u**2
 		- u
-		- ... ?
+		- u(1-u) ?
+		- zero
 	- linear advection
 
 Results variables (accuracy and score)

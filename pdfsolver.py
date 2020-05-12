@@ -48,7 +48,9 @@ class PdfGrid:
             print('invalid variable option')
             return None
 
-    def adjust(self, fu, adjustparams):
+    def adjust(self, fu, adjustparams={'mx':[0, 1],'mu':[0, 1],'mt':[0, 1],'px':1,'pu':1,'pt':1}):
+        # mx: percentage margin in x: [left, right]
+        # px: period of x: default = 1 
         mx = adjustparams['mx']
         mu = adjustparams['mu']
         mt = adjustparams['mt']
@@ -57,12 +59,14 @@ class PdfGrid:
         pt = adjustparams['pt']
         
         # Take only a portion
-        uu = self.uu[mu[0]:self.nu-mu[1]]
-        xx = self.xx[mx[0]:self.nx-mx[1]]
-        tt = self.tt[mt[0]:self.nt-mt[1]]
-        fu = fu[mu[0]:self.nu-mu[1], mx[0]:self.nx-mx[1], mt[0]:self.nt-mt[1]]
-
-        #decrease grid frequency
+        uu = self.uu[int(mu[0]*self.nu) : int(mu[1]*self.nu)]
+        xx = self.xx[int(mx[0]*self.nx) : int(mx[1]*self.nx)]
+        tt = self.tt[int(mt[0]*self.nt) : int(mt[1]*self.nt)]
+        fu = fu[int(mu[0]*self.nu) : int(mu[1]*self.nu),
+                int(mx[0]*self.nx) : int(mx[1]*self.nx), 
+                int(mt[0]*self.nt) : int(mt[1]*self.nt)]
+                
+        # Decrease grid frequency
         tidx = np.array([i*pt for i in range(len(tt)//pt)])
         xidx = np.array([i*px for i in range(len(xx)//px)])
         uidx = np.array([i*pu for i in range(len(uu)//pu)])

@@ -166,6 +166,7 @@ class Visualize:
 
             self.xslide.on_changed(update_fu) 
 
+
         elif dim=='x':
             snapidx = [int(i) for i in np.linspace(0, len(g.xx)-1, steps)]
 
@@ -200,6 +201,8 @@ class Visualize:
             self.tslide.on_changed(update_fu) 
         else:
             raise Exception("dimension doesn't exist; choose x or t")
+
+        return ax
 
     def plot_flabel(self, fu, dim='t', steps=5): # Can be merged with 3D for less memory
         g = self.grid

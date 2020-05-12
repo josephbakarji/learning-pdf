@@ -1,15 +1,12 @@
 Plan
 
+- FIGURES
+	* Plots:
+	* Diagrams:	
+		- Include summary diagram from presentation
 
-- Runs:
-	- Monte Carlo advection-reaction
-		- include a deterministic reaction coefficient? - derive pdf equation
-		- does it work for random reaction coefficient? - derive pdf equation
-	- Monte Carlo advection-reaction with random parameter
-	- Test Burgers equation before and after shock front (Split data to pre- and post- shock front)
-		- Does it learn a source term?
+-
 
-	- Make it possible to take smaller portions of the simulation horizon (to prevent breaking memory)
 
 --------------------
 

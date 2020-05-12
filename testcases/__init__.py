@@ -5,7 +5,7 @@ MAIN = os.path.dirname(TESTDIR)
 sys.path.insert(0, MAIN) 
 
 
-FIGFILE = MAIN + "/figures/"
+FIGDIR = MAIN + "/figures/"
 SOLVERDIR = MAIN + "/solvers/"
 PDFDIR = MAIN + "/pdf_data/"
 LEARNDIR = MAIN + "/learn_data/"

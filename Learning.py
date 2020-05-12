@@ -5,10 +5,12 @@ from sklearn import linear_model
 from scipy.signal import savgol_filter
 from numpy.polynomial.chebyshev import chebval, Chebyshev
 from sklearn.metrics import mean_squared_error
+import json
 
 from __init__ import *  ## fix - Imports from testcases directory! 
 from pdfsolver import PdfSolver, PdfGrid
 from datamanage import DataIO
+from data_analysis import Analyze
 
 
 import time
@@ -51,9 +53,11 @@ class PDElearn:
         if LassoType == 'Lasso':
             lin = linear_model.Lasso(alpha=RegCoef, max_iter=maxiter, normalize=normalize, tol=tolerance)
         elif LassoType == 'LassoCV':
-            lin = linear_model.LassoCV(eps=0.0001, cv=cv, normalize=normalize)
+            lin = linear_model.LassoCV(cv=cv, normalize=normalize, max_iter=maxiter)
         elif LassoType == 'LassoLarsCV':
-            lin = linear_model.LassoLarsCV(cv=cv, normalize=normalize)
+            lin = linear_model.LassoLarsCV(cv=cv, normalize=normalize, max_iter=maxiter)
+        elif LassoType == 'LarsCV':
+            lin = linear_model.LarsCV(cv=cv, normalize=normalize, max_iter=maxiter)
         elif LassoType == 'LassoLarsIC':
             lin = linear_model.LassoLarsIC(criterion=criterion, normalize=normalize, max_iter=maxiter)
         else:
@@ -117,9 +121,19 @@ class PDElearn:
 #########################################
 
     def fit_sparse(self, feature_opt='1storder', variableCoef=False, variableCoefOrder=0, variableCoefBasis='simple_polynomial', \
-            LassoType='Lasso', RegCoef=None, cv=None, criterion=None, maxiter=10000, tolerance=0.00001, use_rfe=False, normalize=True,
+            LassoType='Lasso', RegCoef=0.00001, cv=None, criterion=None, maxiter=10000, tolerance=0.00001, use_rfe=False, normalize=True,
             rfe_iter=10, rfe_alpha=None, print_rfeiter=False, shuffle=False, nzthresh=1e-200, basefile='', adjustgrid={}, save=True, 
-            comments=''):
+            comments='', checkExistence=True):
+
+
+        # Make Metadata and Check its existence
+        metadata = self.makeMetadata(basefile, adjustgrid, feature_opt, self.trainratio, variableCoef, variableCoefOrder, variableCoefBasis, \
+            LassoType, cv, criterion, use_rfe, rfe_alpha, nzthresh, maxiter, comments)
+        datahandler = DataIO(self.scase, directory=LEARNDIR, basefile=basefile)
+        if checkExistence:
+            exists, filename = datahandler.checkMetadataInDir(metadata, ignore_prop='nzthresh')
+            if exists:
+                return filename+'.txt'
 
         # Make features and training set
         F = Features(scase=self.scase, option=feature_opt, variableCoef=variableCoef, variableCoefOrder=variableCoefOrder, variableCoefBasis=variableCoefBasis)
@@ -129,7 +143,8 @@ class PDElearn:
         # Choose optimization algorithm
         lin = self.choose_optimizer(LassoType=LassoType, RegCoef=RegCoef, cv=cv, criterion=criterion, maxiter=maxiter, tolerance=tolerance, normalize=normalize)
 
-        # Train model using Lasso
+        # Train model with Lasso
+        # Choose to use Recursive Feature Elimination or not
         if use_rfe:
             lin, rem_feature_idx = self.train_rfe(lin, Xtrain, ytrain, rfe_iter=rfe_iter, rfe_alpha=rfe_alpha, print_rfeiter=print_rfeiter)
             Xtrain = Xtrain[:, rem_feature_idx]
@@ -166,9 +181,10 @@ class PDElearn:
 
         elif LassoType in {'LassoLarsCV', 'LarsCV'}:
             output['alpha'] = lin.alpha_
-            output['alpha_mse_path'] = lin.mse_path_.mean(axis=1).tolist()
-            output['alpha_path'] = lin.alphas_.tolist()
+            output['alpha_mse_path'] = lin.mse_path_.mean(axis=1).tolist() # Average along CV folds
+            output['cv_alpha_path'] = lin.cv_alphas_.tolist() # Goes with mse_path
             output['coef_path'] = lin.coef_path_.tolist()
+            output['alpha_path'] = lin.alphas_.tolist() # Goes with coef_path
 
         elif LassoType == 'Lasso':
             output['alpha'] = RegCoef
@@ -176,36 +192,12 @@ class PDElearn:
         
         # Printing
         if self.verbose:
-            self.print_results(feature_opt, output['trainScore'], output['testScore'], output['trainRMSE'], output['testRMSE'], rem_featurenames, coefficients, output['n_iter'])
-            for key, val in output.items():
-                print(key, '\t\t:\t\t',val)
+            A = Analyze()
+            A.print_results(output, metadata)
 
         # Saving 
-        if save:
-            savedict= {
-            'ICparams':{
-                      'basefile'            : basefile,
-                      'adjustgrid'          : adjustgrid,
-                      'feature_opt'         : feature_opt,
-                      'trainratio'          : self.trainratio, 
-                      'variableCoef'        : variableCoef,
-                      'variableCoefOrder'   : variableCoefOrder,
-                      'variableCoefBasis'   : variableCoefBasis,
-                      'LassoType'           : LassoType,
-                      'cv'                  : cv,
-                      'criterion'           : criterion,
-                      'use_rfe'             : use_rfe, 
-                      'rfe_alpha'           : rfe_alpha, 
-                      'nzthresh'            : nzthresh,
-                      'maxiter'             : maxiter,
-                      'comments'            : comments
-                                },
-            'output': output
-                        }
-
-            learning_filename = self.saveLearning(savedict)
-
-        return output
+        filename = datahandler.saveSolution(output, metadata, fileformat='.txt')
+        return filename 
 
 
 #########################################
@@ -241,30 +233,70 @@ class PDElearn:
 #########################################
 #########################################
 
-    def saveLearning(self, savedict):
-        D = DataIO(self.scase, directory=LEARNDIR)
-        savename = savedict['ICparams']['basefile'].split('.')[0]
-        savenametxt = D.saveJsonFile(savename, savedict)
-        return savenametxt
+    # def saveLearning(self):
+    #     D = DataIO(self.scase, directory=LEARNDIR)
+    #     savename = savedict['ICparams']['basefile'].split('.')[0]
+    #     savenametxt = D.saveJsonFile(savename, savedict)
+    #     return savenametxt
 
+    def makeMetadata(self, basefile, adjustgrid, feature_opt, trainratio, variableCoef, variableCoefOrder, variableCoefBasis, \
+            LassoType, cv, criterion, use_rfe, rfe_alpha, nzthresh, maxiter, comments):
+        metadata ={ 'ICparams':{
+                        'basefile'            : basefile,
+                        'adjustgrid'          : adjustgrid
+                            },
+                    'Features':{
+                      'feature_opt'         : feature_opt,
+                      'trainratio'          : self.trainratio,
+                      'nzthresh'            : nzthresh
+                                    },
+                    'Algorithm':{
+                      'LassoType'           : LassoType,
+                      'use_rfe'             : use_rfe,
+                      'maxiter'             : maxiter
+                                    }
+                      }
+        if variableCoef:
+            metadata['Features']['variableCoef'] = variableCoef
+            metadata['Features']['variableCoefOrder'] = variableCoefOrder
+            metadata['Features']['variableCoefBasis'] = variableCoefBasis
+
+        if use_rfe:
+            metadata['Algorithm']['rfe_alpha'] = rfe_alpha 
+        if len(comments)>0:
+            metadata['ICparams']['comments'] = comments
+
+        if LassoType == 'LassoLarsIC':
+            metadata['Algorithm']['criterion'] = criterion
+
+        if LassoType in {'LassoCV', 'LassoLarsCV', 'LarsCV'}:
+            metadata['Algorithm']['cv'] = cv 
+
+        return metadata
+             
 #########################################
 #########################################
 
-    def print_results(self, feature_opt, trainScore, testScore, trainRMSE, testRMSE, rem_featurenames, coefficients, n_iter):
-        print("\n#############################\n ")
-        print('Features option: ' + feature_opt )
-        #pdb.set_trace()
+    # def print_results(self, output):
 
-        print("---- Errors ----")
-        print("Train Score \t= %5.3f"%(trainScore))
-        print("Test Score \t= %5.3f"%(testScore)) 
-        print("Train RMSE \t= %5.3e"%(trainRMSE))
-        print("Test RMSE \t= %5.3e"%(testRMSE) )
+    #     props = ['feature_opt', 'trainScore', 'testScore', 'trainRMSE', 'testRMSE', 'featurenames', 'coefficients', 'n_iter']
+    #     feature_opt, trainScore, testScore, trainRMSE, testRMSE, featurenames, coefficients, n_iter = [output[p] for p in props]
+
+    #     print("\n#############################\n ")
+    #     print('Features option: ' + feature_opt )
+
+    #     print("---- Errors ----")
+    #     print("Train Score \t= %5.3f"%(trainScore))
+    #     print("Test Score \t= %5.3f"%(testScore)) 
+    #     print("Train RMSE \t= %5.3e"%(trainRMSE))
+    #     print("Test RMSE \t= %5.3e"%(testRMSE) )
         
-        print("---- Coefficients ----")
-        for featurenames, coef in zip(rem_featurenames, coefficients): 
-                print("%s \t:\t %7.9f" %( featurenames, coef))
-        print("number of iterations: ", n_iter)
+    #     print("---- Coefficients ----")
+    #     for feat, coef in zip(featurenames, coefficients): 
+    #             print("%s \t:\t %7.9f" %( feat, coef))
+    #     print("number of iterations: ", n_iter)
+
+
 
     def print_report(self, lin, X, y, rem_feature_idx):
         print("\n##########\n")
@@ -315,7 +347,8 @@ class PDElearn:
     def makeTTsets(self, featurelist, labels, shuffle=False, threshold=1e-90):
 
         # Get rid of useless nodes that don't change in time
-        nzidx = np.where(np.sum(labels, axis=2)>threshold)
+        nzidx = np.where(np.sqrt(np.sum(labels**2, axis=2))>threshold)
+        print('fu num elem ', np.prod(featurelist[0].shape))
         print('fu_red num elem: ', np.prod(featurelist[0][nzidx].shape))
 
         X = self.make_X(featurelist, nzidx)
@@ -374,121 +407,16 @@ class Features:
         # '1storder': first order in time
         # '1storder_close': learn closure terms
 
-        ## TODO: Rewrite this as conditioned on dimension: (u, t) or (u, x, t)
-        if self.scase == 'advection_marginal' or self.scase == 'burgersMC' or self.scase=='advection_reaction' or self.scase=='advection_reaction_analytical':
-            return self.makeFeatures_AdvMar(grid, fu, ICparams)
-        elif self.scase == 'reaction_linear':
-            return self.makeFeatures_ReaLin(grid, fu, ICparams)
+        ## TODO: Only assumes the forms (u, t) or (u, x, t)
+        if hasattr(grid, 'xx'):
+            return self.makeFeatures_uxt(grid, fu, ICparams)
         else:
-            raise Exception("case %s doesn't exist"%(self.scase))
-
-    def makeFeatures_ReaLin(self, grid, fu, ICparams):
-
-        nt = len(grid.tt)
-        nu = len(grid.uu)
-        dt = grid.tt[1] - grid.tt[0]
-        du = grid.uu[1] - grid.uu[0]
-       
-        if self.option == '1storder':
-            ddict = {'', 't', 'U', 'UU', 'UUU'}
-        else:
-            raise Exception('option not valid')
+            return self.makeFeatures_ut(grid, fu, ICparams)
+        # else:
+        #     raise Exception("case %s doesn't exist"%(self.scase))
 
 
-        # Derivative terms dictionary
-        # Computationally inefficient (fix: use previous derivatives)
-        dimaxis = {'U':0, 't': 1}
-        diminc = {'U':du, 't':dt}
-        maxder = {'U':0, 't':0} 
-        fudict = dict.fromkeys(ddict, None) # fu dictionary of derivatives
-        dcount = dict.fromkeys(ddict, None) # Counts of derivatives for each term
-
-        for term in ddict:
-            dfu = fu.copy()
-            md = {'U':0, 't':0}
-            if len(term)>0:
-                for dim in term:
-                    dfu = np.diff(dfu, axis = dimaxis[dim])/diminc[dim]
-                    md[dim] += 1 
-            dcount[term] = md
-            fudict[term] = dfu
-            for dim in term:
-                maxder[dim] = md[dim] if md[dim] > maxder[dim] else maxder[dim]
-        
-        # Adjust dimensions to match
-        mu = maxder['U']
-        mt = maxder['t']
-        uu_adj = grid.uu[mu//2 : nu-mu//2-mu%2]
-        for term in fudict:
-            uc = mu - dcount[term]['U']
-            tc = mt - dcount[term]['t']
-            nu = fudict[term].shape[0]
-            nt = fudict[term].shape[1]
-            fudict[term] = fudict[term][uc//2:nu-uc//2-uc%2, tc//2:nt-tc//2-tc%2] 
-        
-        
-        # make labels and feature lists
-        featurenames = []
-        featurelist = []
-
-        # Add feature of ones
-        fudict['1'] =  np.ones_like(fudict['t'])
-        ddict.add('1')
-
-        # Add variable coefficients
-        deg = self.variableCoefOrder+1 
-
-        if self.variableCoef:
-            
-            print("Variable coefficient type: " + self.variableCoefBasis)
-            fudict_var = dict.fromkeys([(term, j) for term in ddict for j in range(deg)])
-
-            for term in ddict:
-                for i in range(deg):
-                    fuu = np.zeros_like(uu_adj)
-                    for k, u in enumerate(uu_adj):
-                        if self.variableCoefBasis == 'chebyshev':
-                            ivec = np.zeros(i+1)
-                            ivec[-1] = 1
-                            fuu[k] = chebval(u, ivec)
-                        elif self.variableCoefBasis == 'simple_polynomial':
-                            fuu[k] = u**i 
-
-                        else:
-                            raise Exception("variableCoefBasis %s doesn't exist".format(self.variableCoefBasis))
-
-                    fudict_var[(term, i)] = fuu  # nu*1
-
-            # Multiply variables coefficients with numerical derivatives
-            for feat, coefarr in fudict_var.items():
-                # feat = (term, i, j)
-                fuu_t = np.tile(coefarr.transpose(), (nt-mt, 1)).transpose()
-                fudict_var[feat] = np.multiply( fudict[feat[0]], fuu_t )
-
-
-            if self.option == '1storder':
-                labels = fudict_var[('t', 0)]
-                for key, val in fudict_var.items():
-                    if key[0] != 't':
-                        featurenames.append('fu_'+key[0]+'*U^'+str(key[1]))
-                        featurelist.append(val)
-            else:
-                raise Exception("wrong option")
-
-        else: # Not variable coefficient
-            if self.option == '1storder':
-                labels = fudict['t']
-                for term, val in fudict.items():
-                    if term != 't':
-                        featurenames.append('fu_'+term)
-                        featurelist.append(val)
-            else:
-                raise Exception("wrong option")
-
-
-        return featurelist, labels, featurenames
-
-    def makeFeatures_AdvMar(self, grid, fu, ICparams):
+    def makeFeatures_uxt(self, grid, fu, ICparams):
         nt = len(grid.tt)
         nx = len(grid.xx)
         nu = len(grid.uu)
@@ -610,11 +538,37 @@ class Features:
                         featurelist.append(val)
 
             elif self.option == '1storder_close':
-                S = PdfSolver(grid, ICparams=ICparams) 
-                print(S.int_kmean())
-                labels = fudict_var[('t', 0, 0)] + S.int_kmean() * fudict_var[('x', 0, 0)]
+                # TODO: Make loadMetadata(filename, directory) into function 
+
+                mcD = DataIO(self.scase, directory=MCDIR)
+                with open(mcD.casedir+'metadata.txt', 'r') as jsonfile:
+                    allmc_metadata = json.load(jsonfile)
+                    mc_metadata = allmc_metadata[ICparams['MCfile'].split('.')[0]]
+
+                if self.scase == 'advection_reaction_randadv_analytical':
+                    k_coeffs = mc_metadata['ICparams']['distparams'][0]
+                    # TODO: add 'distk' for ICparams and find mean based on it instead
+                    if mc_metadata['ICparams']['fu0'] == 'gaussians_k':
+                        kmean = k_coeffs[0]
+                    print('kmean = ', kmean)
+
+                    if mc_metadata['ICparams']['source'] == 'quadratic':
+                        labels = fudict_var[('t', 0, 0)] + kmean * fudict_var[('x', 0, 0)] + fudict_var[('U', 2, 0)] + 2*fudict_var[('', 1, 0)]
+                        removekeys = {('t', 0, 0), ('x', 0, 0), ('U', 2, 0), ('', 1, 0)}
+
+                    elif mc_metadata['ICparams']['source'] == 'linear':
+                        labels = fudict_var[('t', 0, 0)] + kmean * fudict_var[('x', 0, 0)] + fudict_var[('U', 1, 0)] + fudict_var[('', 0, 0)]
+                        removekeys = {('t', 0, 0), ('x', 0, 0), ('U', 1, 0), ('', 0, 0)}
+
+                    elif mc_metadata['ICparams']['source'] == 'logistic':
+                        ## TODO: Assumes kr = K = 1.0
+                        labels = fudict_var[('t', 0, 0)] + kmean * fudict_var[('x', 0, 0)] \
+                        + fudict_var[('U', 1, 0)] - fudict_var[('U', 2, 0)] + fudict_var[('', 0, 0)] - 2*fudict_var[('', 1, 0)]
+                        removekeys = {('t', 0, 0), ('x', 0, 0), ('U', 2, 0), ('U', 1, 0), ('', 1, 0), ('', 0, 0)}
+
+                ## TODO: Try removing terms that appear in closure
                 for key, val in fudict_var.items():
-                    if key[0] != 't' and key != ('x', 0, 0):
+                    if key[0] != 't' and key not in removekeys:
                         featurenames.append('fu_'+key[0]+'^{'+str(key[1])+str(key[2])+'}')
                         featurelist.append(val)
             else:
@@ -639,6 +593,7 @@ class Features:
             elif self.option == '1storder_close':
                 S = PdfSolver(grid, ICparams=ICparams) 
                 labels = fudict['t'] + S.int_kmean() * fudict['x']
+
                 for term, val in fudict.items():
                     if term != 't':
                         featurenames.append('fu_'+term)
@@ -651,6 +606,111 @@ class Features:
         return featurelist, labels, featurenames
 
 
+    def makeFeatures_ut(self, grid, fu, ICparams):
+
+        nt = len(grid.tt)
+        nu = len(grid.uu)
+        dt = grid.tt[1] - grid.tt[0]
+        du = grid.uu[1] - grid.uu[0]
+       
+        if self.option == '1storder':
+            ddict = {'', 't', 'U', 'UU', 'UUU'}
+        else:
+            raise Exception('option not valid')
+
+
+        # Derivative terms dictionary
+        # Computationally inefficient (fix: use previous derivatives)
+        dimaxis = {'U':0, 't': 1}
+        diminc = {'U':du, 't':dt}
+        maxder = {'U':0, 't':0} 
+        fudict = dict.fromkeys(ddict, None) # fu dictionary of derivatives
+        dcount = dict.fromkeys(ddict, None) # Counts of derivatives for each term
+
+        for term in ddict:
+            dfu = fu.copy()
+            md = {'U':0, 't':0}
+            if len(term)>0:
+                for dim in term:
+                    dfu = np.diff(dfu, axis = dimaxis[dim])/diminc[dim]
+                    md[dim] += 1 
+            dcount[term] = md
+            fudict[term] = dfu
+            for dim in term:
+                maxder[dim] = md[dim] if md[dim] > maxder[dim] else maxder[dim]
+        
+        # Adjust dimensions to match
+        mu = maxder['U']
+        mt = maxder['t']
+        uu_adj = grid.uu[mu//2 : nu-mu//2-mu%2]
+        for term in fudict:
+            uc = mu - dcount[term]['U']
+            tc = mt - dcount[term]['t']
+            nu = fudict[term].shape[0]
+            nt = fudict[term].shape[1]
+            fudict[term] = fudict[term][uc//2:nu-uc//2-uc%2, tc//2:nt-tc//2-tc%2] 
+        
+        
+        # make labels and feature lists
+        featurenames = []
+        featurelist = []
+
+        # Add feature of ones
+        fudict['1'] =  np.ones_like(fudict['t'])
+        ddict.add('1')
+
+        # Add variable coefficients
+        deg = self.variableCoefOrder+1 
+
+        if self.variableCoef:
+            
+            print("Variable coefficient type: " + self.variableCoefBasis)
+            fudict_var = dict.fromkeys([(term, j) for term in ddict for j in range(deg)])
+
+            for term in ddict:
+                for i in range(deg):
+                    fuu = np.zeros_like(uu_adj)
+                    for k, u in enumerate(uu_adj):
+                        if self.variableCoefBasis == 'chebyshev':
+                            ivec = np.zeros(i+1)
+                            ivec[-1] = 1
+                            fuu[k] = chebval(u, ivec)
+                        elif self.variableCoefBasis == 'simple_polynomial':
+                            fuu[k] = u**i 
+
+                        else:
+                            raise Exception("variableCoefBasis %s doesn't exist".format(self.variableCoefBasis))
+
+                    fudict_var[(term, i)] = fuu  # nu*1
+
+            # Multiply variables coefficients with numerical derivatives
+            for feat, coefarr in fudict_var.items():
+                # feat = (term, i, j)
+                fuu_t = np.tile(coefarr.transpose(), (nt-mt, 1)).transpose()
+                fudict_var[feat] = np.multiply( fudict[feat[0]], fuu_t )
+
+
+            if self.option == '1storder':
+                labels = fudict_var[('t', 0)]
+                for key, val in fudict_var.items():
+                    if key[0] != 't':
+                        featurenames.append('fu_'+key[0]+'*U^'+str(key[1]))
+                        featurelist.append(val)
+            else:
+                raise Exception("wrong option")
+
+        else: # Not variable coefficient
+            if self.option == '1storder':
+                labels = fudict['t']
+                for term, val in fudict.items():
+                    if term != 't':
+                        featurenames.append('fu_'+term)
+                        featurelist.append(val)
+            else:
+                raise Exception("wrong option")
+
+
+        return featurelist, labels, featurenames
 
     # INCOMPLETE...
     def makeFeatures_Conservative(self, grid, fu, ICparams):
@@ -805,3 +865,21 @@ class Features:
         return featurelist, labels, featurenames
 
 
+if __name__ == "__main__":
+
+    # LEARN
+    if len(sys.argv)>1:
+        basefile = sys.argv[1] + '.npy'
+    else:
+        basefile = 'advection_reaction_analytical_726_291.npy' 
+
+    case = '_'.join(basefile.split('_')[:-2])
+    dataman = DataIO(case, directory=PDFDIR) 
+    fu, gridvars, ICparams = dataman.loadSolution(basefile, array_opt='marginal')
+
+    grid = PdfGrid(gridvars)
+
+    difflearn = PDElearn(grid=grid, fu=fu, ICparams=ICparams, scase=case)
+    filename = difflearn.fit_sparse(basefile=basefile)
+
+    print(filename)

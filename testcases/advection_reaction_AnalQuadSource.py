@@ -17,8 +17,7 @@ learn = 1
 
 
 case = 'advection_reaction_analytical'
-if runmc:
-	# MONTE CARLO
+
 	plot=True
 
 	x_range = [-2.0, 3.0]
@@ -35,14 +34,14 @@ if runmc:
 
 	#[[0.5, 0.1], [0.45, 0.03], [0.8, 0.1], [0.2, 0.01]]
 
-	mu = 0.5
-	mu_var = 0.1
-	sig = 0.45
-	sig_var = 0.03
-	amp = 0.8
-	amp_var = .1
-	shift = .2
-	shift_var = .01
+	mu 			= 0.5
+	mu_var 		= 0.1
+	sig 		= 0.45
+	sig_var 	= 0.03
+	amp 		= 0.8
+	amp_var 	= 0.1
+	shift 		= 0.2
+	shift_var 	= 0.01
 	 
 	params = [[mu, mu_var], [sig, sig_var], [amp, amp_var], [shift, shift_var]]
 	MC = MonteCarlo(case=case, num_realizations=num_realizations, coeffs=coeffs, source=source, x_range=x_range, tmax=tmax, nx=nx, nt=nt)
@@ -123,10 +122,6 @@ if learn:
 		V.plot_fu(fu, dim='x', steps=s)
 		V.show()
 
-	# Check if this problem was already attempted:
-	# D = DataIO()
-	# savenametxt = savename+'.txt'
-	# alldata, data_exists = D.checkDataInDir(savedict, savenametxt)
 
 	difflearn = PDElearn(grid=grid, fu=fu, ICparams=ICparams, scase=case, trainratio=trainratio, verbose=True)
 	

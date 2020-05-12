@@ -48,24 +48,36 @@ class MonteCarlo:
         solverdict = {'burgers': self.solveBurgers,
                       'burgers_fipy': self.solveBurgersFipy,
                       'advection_reaction_fipy': self.solveAdvectionReactionFipy,
-                      'advection_reaction_analytical': self.solveAdvectionReaction_Analytical
+                      'advection_reaction_analytical': self.solveAdvectionReaction_Analytical,
+                      'advection_reaction_randadv_analytical': self.solveAdvectionReaction_randAdv_Analytical
                       }
         if self.case in solverdict.keys():
             return solverdict[self.case]
         else:
             raise Exception('Solver doesnt exist for this case')
 
-    def multiSolve(self, samples, params):
+    def multiSolve(self, samples, params, checkExistence=True):
         #nt = int(round(self.tmax/self.getdt())) + 1
         u_txw = np.zeros((self.nt, self.nx, self.num_realizations)) # Possible to control nt by interpolation... 
         solver = self.solver()
 
-        bar = progressbar.ProgressBar(maxval=samples.shape[0], widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+        bar = progressbar.ProgressBar(maxval=samples.shape[0], widgets=[progressbar.Bar('>', '[', ']'), ' ', progressbar.Percentage()])
         bar.start()
         
         for i in range(samples.shape[0]):
             x, u_txw[:, :, i] = solver(samples[i, :])
             bar.update(i+1)
+
+            # Check if MC run has already been done 
+            ## can't check earlier because x not defined yet
+            ## TODO: CHECK EARLIER - avoid running solver once
+            if i == 0:
+                if checkExistence:
+                    loader = DataIO(self.case, directory=MCDIR)
+                    exists, filename = loader.checkMetadataInDir(self.makeMetadata(x, params))
+                    if exists:
+                        return filename + '.npy'
+                    print("---- Running MC ----")
 
         bar.finish()
 
@@ -73,11 +85,32 @@ class MonteCarlo:
 
     def saveMC(self, x, u_txw, params):
         saver = DataIO(self.case, directory=MCDIR)
-        gridvars = {'x': makeGridVar(x), 't': [0, self.tmax, self.getdt()]}
-        ICparams = {'distparams':params, 'coeffs':self.coeffs, 'source':self.source}
+        metadata = self.makeMetadata(x, params)
+        filename = saver.saveSolution(u_txw, metadata)
+        return filename 
+
+    def makeMetadata(self, x, params):
+
+        gridvars = {'x': makeGridVar(x), 
+                    't': [0, self.tmax, self.getdt()]}
+        ICparams = {'u0': self.initial_function,
+                    'fu0': self.sample_example, # Fix: Defined in SampleInitial...() !
+                    'num_realizations': self.num_realizations,
+                    'distparams':params,
+                    'coeffs':self.coeffs,
+                    'source':self.source}
+        
+        # Case specific Metadata
+        if self.case == 'advection_reaction_randadv_analytical':
+            # set ka to mean for consistency
+            ICparams['coeffs'] = [params[0][0], self.coeffs[1]]
+            if self.sample_example == 'gaussians_k':
+                ICparams['kdist'] = 'gaussian'
+
+
         metadata = {'ICparams':ICparams, 'gridvars':gridvars}
-        savename = saver.saveSolution(u_txw, metadata)
-        return savename
+        return metadata
+
 
 ##############################################
 
@@ -88,7 +121,7 @@ class MonteCarlo:
         #timevector = np.linspace(0, tmax, self.timesteps)
         x = gu.x[gu.ilo:gu.ihi+1]
         su.init_cond_anal(self.initial_function, params)
-        u_tx = su.evolve_return(self.tmax, self.getdt()) 
+        u_tx = su.evolve_return(self.tmax, self.dt) 
 
         if self.debug == True:
             self.plotu2(x, u_tx)
@@ -109,13 +142,26 @@ class MonteCarlo:
 
         return xx, u_tx
 
+    def solveAdvectionReaction_randAdv_Analytical(self, params):
+        ka, mean, sig, amp, shift = params 
+        self.coeffs[0]=ka
+
+        xx = np.linspace(self.xmin, self.xmax, self.nx)
+        tt = np.linspace(0, self.tmax, self.nt)
+        u0 = lambda x: gaussian(x, mean, sig, amp, shift)
+
+        S = AnalyticalSolution('advection_reaction', u0, xx, tt)
+        u_tx = S.solve(self.source, self.coeffs)
+
+        return xx, u_tx
+
     def solveAdvectionReactionFipy(self, params):
         ka = self.coeffs[0]
         kr = self.coeffs[1]
 
         L = self.xmax - self.xmin
         dx = L/self.nx
-        Nt = round(self.tmax/self.getdt())
+        Nt = round(self.tmax/self.getdt()) + 1
 
         mesh = PeriodicGrid1D(dx=dx, nx=self.nx) + self.xmin # normalized coordinates.
         xc = mesh.cellCenters[0]
@@ -157,7 +203,7 @@ class MonteCarlo:
         ## Fipy does a poor job with nonlinear PDEs like Burgers
         L = self.xmax - self.xmin
         dx = L/self.nx
-        Nt = round(self.tmax/self.getdt())
+        Nt = round(self.tmax/self.getdt()) + 1
 
         mesh = PeriodicGrid1D(dx=dx, nx=self.nx) + self.xmin # normalized coordinates.
         xc = mesh.cellCenters[0]
@@ -200,6 +246,7 @@ class MonteCarlo:
 ###################################
 
     def sampleInitialCondition(self, sample_example, params=[[0.5, 0.3], [0.3, 0.2], [0.8, 0.2], [0.6, 0.2]]):
+        self.sample_example = sample_example
         if sample_example == "triangles":
             mean_min = 0.3
             mean_max = 0.6
@@ -212,7 +259,7 @@ class MonteCarlo:
             scale_mode = (scale_max + scale_min)/2
             shift_min = 0.0
             shift_max = 0.3
-            shift_mode = (shift_max - shift_min)/2
+            shift_mode = (shift_max + shift_min)/2
 
             mean_samples = np.random.triangular(mean_min, mean_mode, mean_max, size=self.num_realizations)
             var_samples = np.random.triangular(var_min, var_mode, var_max, size=self.num_realizations)
@@ -220,17 +267,8 @@ class MonteCarlo:
             shift_samples = np.random.triangular(shift_min, shift_mode, shift_max, size=self.num_realizations)
 
             samples = np.stack((mean_samples, var_samples, scale_samples, shift_samples), axis=1)
-            #params = [[mean_min, mean_max], [var_min, var_max], [scale_min, scale_max], [shift_min, shift_max]]
 
-            # CFL condition
-            if self.nt is None:
-                self.dt =  self.C * ((self.xmax-self.xmin)/self.nx)/(scale_max+shift_max) # solution max is known to decrease for burgers equation
-                print('dt = ', self.dt)
-            else:
-                self.dt = self.getdt()
-    
-            return samples
-                
+
         elif sample_example == "gaussians":
             mean_mean = params[0][0]
             mean_var = params[0][1] 
@@ -247,19 +285,39 @@ class MonteCarlo:
             shift_samples = abs(np.random.normal(shift_mean, shift_var, size=self.num_realizations))
 
             samples = np.stack((mean_samples, var_samples, scale_samples, shift_samples), axis=1)
-            # params = [mean_mean, mean_var, var_mean, var_var, scale_mean, scale_var, shift_mean, shift_var]
 
-            # CFL condition
-            scale_max = scale_mean + 2*scale_var
-            shift_max = shift_mean + 2*shift_var
-            if self.nt is None:
-                self.dt =  self.C * ((self.xmax-self.xmin)/self.nx)/(scale_max+shift_max) # solution max is known to decrease for burgers equation
-                print('dt = ', self.dt)
-            else:
-                self.dt = self.getdt()
+        elif sample_example == "gaussians_k":
+            k_mean      = params[0][0]
+            k_var       = params[0][1] 
+            mean_mean   = params[1][0]
+            mean_var    = params[1][1] 
+            var_mean    = params[2][0] 
+            var_var     = params[2][1] 
+            scale_mean  = params[3][0] 
+            scale_var   = params[3][1] 
+            shift_mean  = params[4][0] 
+            shift_var   = params[4][1] 
+
+            k_samples = np.random.normal(k_mean, k_var, size=self.num_realizations)
+            mean_samples = np.random.normal(mean_mean, mean_var, size=self.num_realizations)
+            var_samples = abs(np.random.normal(var_mean, var_var, size=self.num_realizations))
+            scale_samples =  abs(np.random.normal(scale_mean, scale_var, size=self.num_realizations))
+            shift_samples = abs(np.random.normal(shift_mean, shift_var, size=self.num_realizations))
+
+            samples = np.stack((k_samples, mean_samples, var_samples, scale_samples, shift_samples), axis=1)
+
+
+        # CFL condition
+        scale_max = np.amax(scale_samples) 
+        shift_max = np.amax(shift_samples) 
+        if self.nt is None:
+            self.dt =  self.C * ((self.xmax-self.xmin)/self.nx)/(scale_max+shift_max) # solution max is known to decrease for burgers equation
+            print('dt = ', self.dt)
+            self.nt = int(round(self.tmax/self.dt)) + 1
+        else:
+            self.dt = self.getdt()
     
-            return samples 
-
+        return samples 
 
 
 #####################################
@@ -268,26 +326,45 @@ class MonteCarlo:
 ###### DEBUGGING AND PLOTTING #############
         
     def plot_extremes(self, samples):
-        # mean, var, scale, shift
+        fig = plt.figure()
+        pdb.set_trace()
+        if samples.shape[1] == 4:
+            # mean, var, scale, shift
+            minmean = np.amin(samples[:, 0]) 
+            maxmean = np.amax(samples[:, 0]) 
+            minvar = np.amin(samples[:, 1]) 
+            maxvar = np.amax(samples[:, 1])
+            minscale = np.amin(samples[:, 2]) 
+            maxscale = np.amax(samples[:, 2]) 
+            minshift = np.amin(samples[:, 3]) 
+            maxshift = np.amax(samples[:, 3]) 
 
-        minmean = np.amin(samples[:, 0]) 
-        maxmean = np.amax(samples[:, 0]) 
-        minvar = np.amin(samples[:, 1]) 
-        maxvar = np.amax(samples[:, 1])
-        minscale = np.amin(samples[:, 2]) 
-        maxscale = np.amax(samples[:, 2]) 
-        minshift = np.amin(samples[:, 3]) 
-        maxshift = np.amax(samples[:, 3]) 
-
-        params0 = np.array([minmean, maxvar, maxscale, maxshift])
-        params1 = np.array([maxmean, maxvar, maxscale, maxshift]) 
-        params2 = np.array([maxmean, minvar, maxscale, maxshift]) 
-        params3 = np.array([maxmean, maxvar, minscale, minshift]) 
+            params0 = np.array([minmean, maxvar, maxscale, maxshift])
+            params1 = np.array([maxmean, maxvar, maxscale, maxshift]) 
+            params2 = np.array([maxmean, minvar, maxscale, maxshift]) 
+            params3 = np.array([maxmean, maxvar, minscale, minshift]) 
         
+        elif samples.shape[1] == 5:
+            # k, mean, var, scale, shift
+            mink        = np.amin(samples[:, 0]) 
+            maxk        = np.amax(samples[:, 0])             
+            minmean     = np.amin(samples[:, 1]) 
+            maxmean     = np.amax(samples[:, 1]) 
+            minvar      = np.amin(samples[:, 2]) 
+            maxvar      = np.amax(samples[:, 2])
+            minscale    = np.amin(samples[:, 3]) 
+            maxscale    = np.amax(samples[:, 3]) 
+            minshift    = np.amin(samples[:, 4]) 
+            maxshift    = np.amax(samples[:, 4]) 
+
+            params0 = np.array([mink, minmean, maxvar, maxscale, maxshift])
+            params1 = np.array([maxk, maxmean, maxvar, maxscale, maxshift]) 
+            params2 = np.array([mink, maxmean, minvar, maxscale, maxshift]) 
+            params3 = np.array([mink, maxmean, maxvar, minscale, minshift])
+            
+
         print('min mean - ', params0)
         x, u_tx = self.solver()(params0)
-
-        fig = plt.figure()
         plt.plot(x, u_tx[0, :], 'k--')
         plt.plot(x, u_tx[-1, :], 'k')
 

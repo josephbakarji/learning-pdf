@@ -5,6 +5,8 @@ from tabulate import tabulate
 import datetime
 import pdb
 from helper_functions import *
+
+
 from __init__ import *
 
 # Class for reading and writing data from PDFDIR
@@ -25,6 +27,14 @@ class DataIO:
         if not os.path.exists(self.casedir):
             print('DIRECTORY: ', self.casedir, ' does not exist; I am creating it..')
             os.mkdir(self.casedir)
+
+    def clearExtraFiles(self):
+        allmetadata = self.readMetadata()
+        files = set([f.split('.')[0] for f in os.listdir(self.casedir)])
+        newmetadata = {key:val for key, val in allmetadata.items() if key in files} 
+        with open(self.casedir+'metadata.txt', 'w') as jsonfile:
+            json.dump(newmetadata, jsonfile)
+
 
     def makefilename(self, basefile):
         ## Make file name
@@ -66,7 +76,7 @@ class DataIO:
 
 ########################
 
-    def saveSolution(self, solution, metadata):
+    def saveSolution(self, solution, metadata, fileformat='.npy'):
         ## Saving metadata
         # Inputs: !!! Function doesn't assume form !!! - might be different in different files
         # solution = function(U, x, t) (array)
@@ -74,42 +84,25 @@ class DataIO:
 
         allmetadata = self.readMetadata()
 
-        # TODO: add timestamp - PROBLEM: can't simply compare full metadata struct anymore 
-        # Would have to change CheckMetadataInDir()
-        # metadata['date'] = str(datetime.datetime.now())
-
         # add new metadata
         allmetadata[self.savename] = metadata
         with open(self.casedir+'metadata.txt', 'w') as jsonfile:
             json.dump(allmetadata, jsonfile)
 
-        ## Saving solutions dictionary fuk, fu, gridvars.
+        savenameformat = self.savename + fileformat 
 
-        savenamenpy = self.savename + '.npy'
-        np.save(self.casedir + savenamenpy, solution)
+        if fileformat == '.npy':
+            np.save(self.casedir + savenameformat, solution)
 
-        return savenamenpy
+        elif fileformat == '.txt':
+            with open(self.casedir+savenameformat, 'w') as jsonfile:
+                json.dump(solution, jsonfile)
 
-    # def saveSolution_old(self, solution_dict, metadata):
-    #     ## Saving metadata
-    #     # Inputs: !!! Function doesn't assume form !!! - might be different in different files
-    #     # solution = {'fuk': fuk, 'fu': fu, 'gridvars': grid.gridvars}
-    #     # metadata = {'ICparams': ICparams, 'gridvars': grid.gridvars} 
-    #     allmetadata = self.readMetadata()
-
-    #     # add new metadata
-    #     allmetadata[self.savename] = metadata
-    #     with open(self.casedir+'metadata.txt', 'w') as jsonfile:
-    #         json.dump(allmetadata, jsonfile)
-
-    #     ## Saving solutions dictionary fuk, fu, gridvars.
-    #     savenamenpy = self.savename + '.npy'
-    #     np.save(self.casedir + savenamenpy, solution_dict)
-
-    #     return self.savename
+        return savenameformat
 
 ##########################
-    def loadSolution(self, loadnamenpy, array_opt='marginal'):
+    def loadSolution(self, loadnamenpy, array_opt='marginal', metaonly=False):
+        # Works for pdf_data, and mc_data (not learn_data)
         # input: loadname (with .npy)
 
         # Load metadata
@@ -121,76 +114,35 @@ class DataIO:
         else:
             metadata = allmetadata[loadname]
 
-        # Fetch data
-        loaddict = np.load(self.casedir + loadnamenpy)
-
-        fu = np.load(self.casedir + loadnamenpy) 
-
-        ICparams= metadata['ICparams']
+        # Fetch metadata
+        ICparams = metadata['ICparams']
         gridvars = metadata['gridvars']
 
         # TODO: Print them in a nicer way
         if self.verbose:
-            print(ICparams)
-            print(gridvars)
+            print(loadnamenpy)
+            self.printMetadata(filter_filenames=loadname)
 
-        if array_opt=='joint':
-            fuk = loaddict.item().get('fuk') 
-            return fuk, fu, gridvars, ICparams
+        if not metaonly:
+            if array_opt=='joint':
+                # Might be deprecated ....
+                loaddict = np.load(self.casedir + loadnamenpy)
+                fuk = loaddict.item().get('fuk') 
+                fu = loaddict.item().get('fu') 
+                return fuk, fu, gridvars, ICparams
+
+            else:
+                fu = np.load(self.casedir + loadnamenpy) 
+                return fu, gridvars, ICparams
         else:
-            return fu, gridvars, ICparams
-
-
-    # def loadSolution_old(self, loadnamenpy, array_opt='joint'):
-    #     # input: loadname (with .npy)
-    #     # Load metadata
-    #     loadname = loadnamenpy.split('.')[0]
-    #     with open(self.casedir+'metadata.txt') as jsonfile:
-    #         allmetadata = json.load(jsonfile)
-    #     if loadname not in allmetadata.keys():
-    #         raise Exception("File %s doesn't exist"%(loadname))
-    #     else:
-    #         metadata = allmetadata[loadname]
-
-    #     # Fetch data
-    #     loaddict = np.load(self.casedir + loadnamenpy)
-
-    #     # TODO: WHY ARE THEY DONE DIFFERENTLY? CHECK!
-    #     fu = loaddict.item().get('fu')
-
-    #     ICparams= metadata['ICparams']
-    #     gridvars = metadata['gridvars']
-    #     # TODO: Print them in a nicer way
-    #     if self.verbose:
-    #         print(ICparams)
-    #         print(gridvars)
-
-    #     if array_opt=='joint':
-    #         fuk = loaddict.item().get('fuk') 
-    #         return fuk, fu, gridvars, ICparams
-    #     else:
-    #         return fu, gridvars, ICparams
+            return gridvars, ICparams
 
 ##########################
 
-    def saveJsonFile(self, savename, savedict):
-        savenametxt = savename+'.txt'
-        alldata, data_exists = self.checkDataInDir(savedict, savenametxt)
-        if not data_exists:
-            timestamp = str(datetime.datetime.now())
-            alldata[timestamp] = savedict
 
-        
-        with open(self.casedir+savenametxt, 'w') as jsonfile:
-            json.dump(alldata, jsonfile)
-
-        return savenametxt
-
-
-##########################
-
+    ## MOVE TO Data_analysis.py
     def readLearningResults(self, filename, PDFdata=False, MCdata=False, display=False):
-        ## filename = 'case_name_123_456.txt'
+        ## filename = 'case_name_123_456_789.txt'
         ## Can infer case from filename
         # case = '_'.join(filename.split('.')[0].split('_')[:-2])
         # self.updateCaseDir(case, self.directory)
@@ -199,64 +151,69 @@ class DataIO:
         pdf_metadata = []
         mc_metadata = []
 
-        with open(self.casedir+filename, 'r') as jsonfile:
-            learning_data = json.load(jsonfile)
+        # Read learning results
+        learnfilename = filename.split('.')[0]
+        with open(self.casedir + filename, 'r') as jsonfile:
+            learn_output = json.load(jsonfile)
 
+        # Read learning inputs 
+        with open(self.casedir+'metadata.txt', 'r') as jsonfile:
+            alllearning_metadata = json.load(jsonfile)
+            learning_metadata = alllearning_metadata[learnfilename]
+        pdffilename = learning_metadata['ICparams']['basefile'].split('.')[0]
+             
+
+        # Read PDF data inputs
         if PDFdata:
             pdfD = DataIO(self.case, directory=PDFDIR)
-            pdffilename = filename.split('.')[0]
             with open(pdfD.casedir+'metadata.txt', 'r') as jsonfile:
                 allpdf_metadata = json.load(jsonfile)
                 pdf_metadata = allpdf_metadata[pdffilename]
             mcfilename = pdf_metadata['ICparams']['MCfile'].split('.')[0]
 
-        if MCdata:
+        # Read Monte Carlo simulation data inputs
+        if MCdata and PDFdata:
             # Doesn't account for the case where PDFdata=False
             mcD = DataIO(self.case, directory=MCDIR)
-            with open(mcD.casedir+'metadata.txt', 'r') as jsonfile:
-                allmc_metadata = json.load(jsonfile)
-                mc_metadata = allmc_metadata[mcfilename]
+            allmc_metadata = mcD.readMetadata()
+            mc_metadata = allmc_metadata[mcfilename]
+            # with open(mcD.casedir+'metadata.txt', 'r') as jsonfile:
+            #     allmc_metadata = json.load(jsonfile)
+            #     mc_metadata = allmc_metadata[mcfilename]
+
 
         if display:
             # TODO: Use pandas
             print("MC DATA")
             print("*******")
-            for category, properties in mc_metadata.items():
-                print(category)
-                for prop, val in properties.items():
-                    print(prop, '\t:\t ', val)
+            mcD.printMetadata(filter_filenames=mcfilename)
 
-            print("\n\nPDF DATA")
+            print("\nPDF DATA")
             print("*******")
-            for category, properties in pdf_metadata.items():
-                print(category)
-                for prop, val in properties.items():
-                    print(prop, '\t:\t ', val)
+            pdfD.printMetadata(filter_filenames=pdffilename)
 
-            print(pdf_metadata)
-            print("\n\nLearning DATA")
+            print("\nLearning DATA")
             print("**********")
-            for time, case_data in learning_data.items():
-                print(case_data['ICparams']['basefile'])
-                print('------------------------')
-                for prop, val in case_data['ICparams'].items():
-                    print(prop, '\t:\t ', val)
-                for prop, val in case_data['output'].items():
-                    val = np.array(val) if type(val)==list else val
-                    print(prop, '\t:\t ', val)
-                print('\n------------------------\n')
+            self.printMetadata(filter_filenames=learnfilename)
 
-            print(learning_data)
+            print("\nResults ")
+            # PDElearn().print_results(learn_output)
 
-        return learning_data, pdf_metadata, mc_metadata
+        if MCdata and PDFdata:
+            return learn_output, learning_metadata, pdf_metadata, mc_metadata
+        elif PDFdata:
+            return learn_output, learning_metadata, pdf_metadata
+        else:
+            return learn_output, learning_metadata
 
 
 
 ##########################
 
-    def checkMetadataInDir(self, metadata, throwException=False):
+    def checkMetadataInDir(self, metadata, ignore_prop='', throwException=False):
         # Check if the same metadata (IC parameters) already exist
         exists = False
+        filename = ''
         
         # Check if metadata.txt doesn't exist 
         if not os.path.isfile(self.casedir+'metadata.txt'):
@@ -265,47 +222,66 @@ class DataIO:
         else:
             ff = open(self.casedir+'metadata.txt', 'r')
             if ff.read() == '':
-                return exists 
+                return exists, filename
 
             else:
                 with open(self.casedir + 'metadata.txt') as jsonfile:
                     allmetadata = json.load(jsonfile)
-                    for filename, data in allmetadata.items():
-                        if metadata == data:  
+                    for filename, existingdata in allmetadata.items():
+                        same = self.compareMeta(metadata, existingdata, ignore_prop=ignore_prop)
+                        if same:
                             exists = True
                             if throwException:
                                 raise Exception("Same metadata already exists in file: %s"%(filename)) 
                             else:
                                 print("Same metadata already exists in file: %s"%(filename)) 
+                                return exists, filename
 
-        return exists
-       
+        return exists, filename 
+      
+
+    def compareMeta(self, metadata, existingdata, ignore_prop=''):
+        if ignore_prop == '':
+            return metadata == existingdata
+        else:
+            # Assumes two levels in metadata 
+            # Assume same and prove wrong
+            same = True
+            for cat, propdict in metadata.items():
+                for prop, val in propdict.items():
+                    if prop not in ignore_prop:
+                        if prop not in existingdata[cat]:
+                            return False 
+                        elif existingdata[cat][prop] != val:
+                            return False 
+        return same 
+
 ##########################
 
-    def checkDataInDir(self, data, filename, throwException=False):
-        # Check if the same file (learning) already exist
-        exists = False
-        file = self.casedir+filename
-        alldata = {}
-        # Check if metadata.txt doesn't exist 
-        if not os.path.isfile(file):
-            ff = open(file, 'w+')
-            ff.close()
-            print('Learning ' + filename + ' hasnt been done; I am creating a file for it')
-        else:
-            ff = open(file, 'r')
-            if ff.read() != '':
-                with open(file) as jsonfile:
-                    alldata = json.load(jsonfile)
-                    for data0 in alldata: # alldata is a list of dictionaries
-                        if data == data0:  
-                            exists = True
-                            if throwException:
-                                raise Exception("Same data already exists in file: %s"%(filename)) 
-                            else:
-                                print("Same data already exists in file: %s"%(filename)) 
+    # def checkDataInDir(self, data, filename, throwException=False):
+    #     # Check if the same file (learning) already exist
+    #     exists = False
+    #     file = self.casedir+filename
+    #     alldata = {}
+    #     # Check if metadata.txt doesn't exist 
+    #     if not os.path.isfile(file):
+    #         ff = open(file, 'w+')
+    #         ff.close()
+    #         print('Learning ' + filename + ' hasnt been done; I am creating a file for it')
+    #     else:
+    #         ff = open(file, 'r')
+    #         if ff.read() != '':
+    #             with open(file) as jsonfile:
+    #                 alldata = json.load(jsonfile)
+    #                 for data0 in alldata: # alldata is a list of dictionaries
+    #                     if data == data0:  
+    #                         exists = True
+    #                         if throwException:
+    #                             raise Exception("Same data already exists in file: %s"%(filename)) 
+    #                         else:
+    #                             print("Same data already exists in file: %s"%(filename)) 
 
-        return alldata, exists
+    #     return alldata, exists
 
 ##########################
 
@@ -329,6 +305,7 @@ class DataIO:
         
         # Put elements in lists
         full_list = []
+        filter_filenames = [filter_filenames] if type(filter_filenames)==str else filter_filenames # make list if str
         for filename, data in allmetadata.items(): 
             if filter_filenames != None:
                 if filename not in filter_filenames:
@@ -337,6 +314,9 @@ class DataIO:
             single_run = [filename]
             for propval in data.values(): # 'ICparams': ..., 'gridvars':...,
                 for val in propval.values():
+
+                    # Round floating numbers for display
+                    val = [(round(elem, 4) if type(elem) is not list else elem) for elem in val] if type(val)==list else val
                     single_run.append(val)
             full_list.append(single_run)
         
@@ -413,8 +393,30 @@ class DataIO:
 
 
 if __name__ == "__main__":
-    D = DataIO('advection_marginal') 
+
+    if len(sys.argv)>1:
+        if sys.argv[1] == 'pdf':
+            directory = PDFDIR
+        elif sys.argv[1] == 'mc':
+            directory = MCDIR
+        elif sys.argv[1] == 'learn':
+            directory = LEARNDIR
+    else:
+        directory = PDFDIR
+
+    if len(sys.argv)>2:
+        case = sys.argv[2]
+    else:
+        case = 'burgers'
+
+    D = DataIO(case=case, directory=directory) 
+
+    if len(sys.argv)>3:
+        if sys.argv[3] == 'clear':
+            D.clearExtraFiles()
+
     D.printMetadata()
-    req_properties = {'u0': 'line'}
-    req_filenames = D.filterSolutions(req_properties)
-    #D.printMetadata(filter_filenames=req_filenames)
+
+    # req_properties = {'num_realizations': 60000}
+    # req_filenames = D.filterSolutions(req_properties)
+    # D.printMetadata(filter_filenames=req_filenames)
