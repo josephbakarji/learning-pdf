@@ -2,6 +2,19 @@ import numpy as np
 import progressbar
 import pdb
 
+import os, sys, inspect
+current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+sys.path.append(parent_dir)
+
+# FIX THIS! - import init from parent directory
+MAIN = parent_dir 
+DATAFILE = parent_dir+"/datafile/"
+FIGFILE = parent_dir+"/figures/"
+
+MCDIR = current_dir + '/MCresults/' 
+
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
@@ -39,25 +52,25 @@ class MonteCarlo:
 
         u_txw = np.zeros((round(self.tmax/self.dt), self.nx, self.num_realizations)) # Possible to control nt by interpolation... 
 
-        bar = progressbar.ProgressBar(maxval=samples.shape[0], widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-        bar.start()
+        # bar = progressbar.ProgressBar(maxval=samples.shape[0], widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+        # bar.start()
         
         if self.case=='burgers':
             for i in range(samples.shape[0]):
                 x, u_txw[:, :, i] = self.solveBurgers(samples[i, :])
-                bar.update(i+1)
+                # bar.update(i+1)
 
         elif self.case=='burgersfipy':
             for i in range(samples.shape[0]):
                 x, u_txw[:, :, i] = self.solveBurgersFipy(samples[i, :])
-                bar.update(i+1)
+                # bar.update(i+1)
 
         elif self.case=='advection_reaction':
-            for i in range(samples.shape[0]):
+            for i in tqdm(range(samples.shape[0])):
                 x, u_txw[:, :, i] = self.solveAdvectionReaction(samples[i, :], coeffs=coeffs)
-                bar.update(i+1)
+                # bar.update(i+1)
 
-        bar.finish()
+        # bar.finish()
 
         gridinfo = {'x': x, 't': np.linspace(0, self.tmax, round(self.tmax/self.dt)), 'params':params, 'coeffs':coeffs}
 

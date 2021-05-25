@@ -1,5 +1,5 @@
 from __future__ import print_function
-from __init__ import DATAFILE
+from __init__ import * 
 
 import pdb
 

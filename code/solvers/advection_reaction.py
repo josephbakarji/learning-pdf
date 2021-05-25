@@ -1,22 +1,3 @@
-"""
-2nd-order accurate finite-volume implementation of linear advection with
-piecewise linear slope reconstruction.
-
-We are solving a_t + u a_x = g(u)
-
-This script defines two classes:
-
- -- the Grid1d class that manages a cell-centered grid and holds the
-    data that lives on that grid
-
- -- the Simulation class that is built on a Grid1d object and defines
-    everything needed to do a advection.
-
-Options for several different slope limiters are provided.
-
-M. Zingale
-
-"""
 
 from __future__ import print_function
 

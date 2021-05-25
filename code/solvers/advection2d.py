@@ -29,6 +29,7 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from __init__ import *
 from datamanage import DataIO
+from tqdm import tqdm
 
 import pdb
 
@@ -273,22 +274,16 @@ class Simulation(object):
         atot = np.zeros((g.a.shape[0], g.a.shape[1], numsteps))
         atot[:, :, 0] = g.a
         tt = np.linspace(0, tmax, numsteps)
-        print(dt, numsteps)
+        # print(dt, numsteps)
 
 
         # main evolution loop
         #while self.t < tmax:
-        for i in range(1, numsteps):
-            print(i, numsteps)
+        for i in tqdm(range(1, numsteps)):
+            # print(i, numsteps)
 
             # fill the boundary conditions
             g.fill_BCs()
-
-            # get the timestep
-
-            #if self.t + dt > tmax:
-                #break
-                #dt = tmax - self.t
 
             # get the interface states
             al, ar, ad, au = self.states(dt)
