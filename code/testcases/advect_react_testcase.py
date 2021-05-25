@@ -3,17 +3,18 @@ current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfra
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir) 
 sys.path.append(os.path.abspath('../solvers'))
+sys.path.append(os.path.abspath('../solvers/numsolvers'))
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pdfsolver import PdfSolver, PdfGrid
+
+from pdfsolver import PdfGrid
 from Learning import PDElearn
 from datamanage import DataIO
-from montecarlo import MCprocessing, MonteCarlo
+from montecarlo import MonteCarlo
+from mc2pdf import MCprocessing
 from visualization import Visualize
 
-from scipy.signal import savgol_filter
-from sklearn.metrics import mean_squared_error
 import time
 import pdb
 from __init__ import *
@@ -45,24 +46,23 @@ class Runner:
         shift = 0.0
         shift_var = 0.0
 
-        num_realizations = 2100 
+        num_realizations = 3
         debug = False
-        savefilename = self.case + str(num_realizations) + '.npy'
-
     
         params = [[mu, mu_var], [sig, sig_var], [amp, amp_var], [shift, shift_var]]
-        MC = MonteCarlo(case=self.case, num_realizations=num_realizations, x_range=x_range, tmax=tmax, debug=debug, savefilename=savefilename, nx=nx, C=C)
+        MC = MonteCarlo(case=self.case, num_realizations=num_realizations, x_range=x_range, tmax=tmax, debug=debug, nx=nx, C=C)
         samples = MC.sampleInitialCondition("gaussians", params=params)
-        MC.dt = dt
+        MC.dt = dt # Artificially make dt smaller 
 
         if testplot:
             MC.plot_extremes_advreact(samples, coeffs=coeffs)
 
-        MC.multiSolve(samples, params, coeffs=coeffs)
+        savename = MC.multiSolve(samples, params, coeffs=coeffs)
 
-        return savefilename
+        # FIX THAT
+        return savename 
 
-
+    # TODO: ADD THIS FUNCTION TO PdfGrid 
     def adjust(self, fu, gridvars, adjustparams):
         mx = adjustparams['mx']
         mu = adjustparams['mu']

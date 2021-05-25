@@ -1,4 +1,6 @@
-datafile/
+mc_data/
+pdf_data/
+learn_data/
 figures/
 .ipynb_checkpoints/
 __pycache__/

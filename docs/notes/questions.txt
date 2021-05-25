@@ -1,5 +1,4 @@
 - questions:
-	- pawula theorem includes 1st, 2nd or infinite order expansion
 	- How do we account for integral terms.
 	- what are the conditions for it to apply (master equation)...
 	- Operator should be written with \beta inside the derivatives
@@ -18,3 +17,8 @@
 -------------------
 
 	Most formulations involving equation learning have the general structure: u_t = N(u). But why impose this structure on the problem? In the case of closures, we've seen that the left hand side can contain more info. But also in the case where u_tt is better learnable than u_t, and in the case \int_u u (the CDF) has a more closable equation etc. There is no obvious reason to assume the form u_t = N(u) other than it's been the common form we usually see. In general, the problem can be formulated as a residual minimization problem, regardless of the form of the residual. An exploration over the shape of the left hand side would be interesting to explore...
+
+--------------------
+	
+	- Why is training error higher than test error??
+	- why are score and errors inversly correlated??!!

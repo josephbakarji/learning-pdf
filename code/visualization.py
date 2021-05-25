@@ -1,5 +1,9 @@
 from __future__ import print_function
+<<<<<<< HEAD:code/visualization.py
 from __init__ import * 
+=======
+from __init__ import *
+>>>>>>> 6a2e7ac1f71a0b443535848a38947094634186f7:visualization.py
 
 import pdb
 
@@ -166,6 +170,7 @@ class Visualize:
 
             self.xslide.on_changed(update_fu) 
 
+
         elif dim=='x':
             snapidx = [int(i) for i in np.linspace(0, len(g.xx)-1, steps)]
 
@@ -200,6 +205,8 @@ class Visualize:
             self.tslide.on_changed(update_fu) 
         else:
             raise Exception("dimension doesn't exist; choose x or t")
+
+        return ax
 
     def plot_flabel(self, fu, dim='t', steps=5): # Can be merged with 3D for less memory
         g = self.grid

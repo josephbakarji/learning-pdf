@@ -204,7 +204,7 @@ class WENOSimulation(burgers.Simulation):
         self.t = 0.0
         g = self.grid
         
-        timesteps = int(tmax/dt)
+        timesteps = int(round(tmax/dt)) + 1
         timevec = numpy.linspace(0, tmax, timesteps)
         u_tx = numpy.zeros((timesteps, g.nx))
         u_tx[0, :] = g.u[g.ilo: g.ihi+1]

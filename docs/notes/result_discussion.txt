@@ -164,3 +164,20 @@ fu_xU^{10} 	:	 0.018193156
 fu_U^{10} 	:	 -0.942126024
 ---- Sparsity = 5 / 90 
 
+######################################################
+Quadratic advection-reaction, rfe_alpha = 0.1
+
+Features option: 1storder
+---- Errors ----
+Train Score 	= 0.976
+Test Score 	= -30.007
+Train RMSE 	= 6.930e-01
+Test RMSE 	= 1.030e-01
+---- Coefficients ----
+fu_^{10} 	:	 -2.274464500
+fu_x^{00} 	:	 -0.969926556
+fu_U^{20} 	:	 -0.956035288
+number of iterations:  5
+advection_reaction_analytical_582_754_85.txt
+
+
