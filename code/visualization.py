@@ -1,9 +1,6 @@
 from __future__ import print_function
-<<<<<<< HEAD:code/visualization.py
-from __init__ import * 
-=======
 from __init__ import *
->>>>>>> 6a2e7ac1f71a0b443535848a38947094634186f7:visualization.py
+
 
 import pdb
 
@@ -281,6 +278,4 @@ class Visualize:
         else:
             raise Exception("dimension doesn't exist; choose x or t")
 
-
-#if __name__ == "__main__":
 
